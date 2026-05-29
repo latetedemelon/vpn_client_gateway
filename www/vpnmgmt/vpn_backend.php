@@ -175,25 +175,33 @@ function vpn_disable_boot()
 function vpn_current_server()
 {
 	if (vpn_is_wireguard()) {
-		if (!is_readable(WIREGUARD_CONF)) {
-			return '';
-		}
-		$conf = file_get_contents(WIREGUARD_CONF);
-		// We record the active hostname as a "# Server = ..." comment in the
-		// [Interface] section, because the config itself only stores an IP.
-		if (preg_match('/^[ \t]*#[ \t]*Server[ \t]*=[ \t]*(\S+)/mi', $conf, $m)) {
-			return $m[1];
-		}
-		if (preg_match('/^[ \t]*Endpoint[ \t]*=[ \t]*(\S+)/mi', $conf, $m)) {
-			return $m[1];
-		}
-		return '';
+		// wg0.conf is root-owned (mode 600), so the web user must read it via
+		// sudo (the same privileged path used to write it).
+		$conf = shell_exec('sudo cat ' . escapeshellarg(WIREGUARD_CONF) . ' 2>/dev/null');
+		return vpn_parse_wg_server($conf);
 	}
 	if (!is_readable(OPENVPN_CONF)) {
 		return '';
 	}
 	$file = file_get_contents(OPENVPN_CONF);
 	if (preg_match('/remote (.*?) \d+/s', $file, $m)) {
+		return $m[1];
+	}
+	return '';
+}
+
+// Pure helper: extract the active server hostname from a WireGuard config.
+// We record it as a "# Server = ..." comment in [Interface] because the config
+// itself only stores the endpoint IP. Falls back to the endpoint.
+function vpn_parse_wg_server($conf)
+{
+	if (!is_string($conf) || $conf === '') {
+		return '';
+	}
+	if (preg_match('/^[ \t]*#[ \t]*Server[ \t]*=[ \t]*(\S+)/mi', $conf, $m)) {
+		return $m[1];
+	}
+	if (preg_match('/^[ \t]*Endpoint[ \t]*=[ \t]*(\S+)/mi', $conf, $m)) {
 		return $m[1];
 	}
 	return '';
@@ -248,9 +256,8 @@ function vpn_render_openvpn_conf($current, $vpnserver)
 	$tld       = isset($hostparts[2]) ? $hostparts[2] : '';
 
 	$serverconf = '';
-	foreach (preg_split('/\R/u', $current, -1) as $i => $line) {
-		// Re-add the newline that preg_split stripped (except trailing empty).
-		$nl = "\n";
+	$nl = "\n"; // preg_split strips line endings; we re-add them
+	foreach (preg_split('/\R/u', $current, -1) as $line) {
 		$tok = preg_split('/[\s]+/', $line);
 		if ($tok[0] === 'remote') {
 			$port = isset($tok[2]) ? $tok[2] : '1194';
@@ -275,14 +282,15 @@ function vpn_write_wireguard_conf($hostname)
 	if ($peer === null) {
 		return false; // no key/endpoint available for this server
 	}
-	if (!is_readable(WIREGUARD_CONF)) {
+	// wg0.conf is root-owned (mode 600); read it via sudo, keep [Interface].
+	$conf = shell_exec('sudo cat ' . escapeshellarg(WIREGUARD_CONF) . ' 2>/dev/null');
+	if (!is_string($conf) || trim($conf) === '') {
 		return false;
 	}
-	$new = vpn_render_wireguard_conf(file_get_contents(WIREGUARD_CONF), $hostname, $peer);
+	$new = vpn_render_wireguard_conf($conf, $hostname, $peer);
 
-	// The config lives in /etc/wireguard (root:root, mode 600). Write to a
-	// temp file and install it atomically with the right ownership/perms via
-	// sudo, matching the project's existing privileged-helper pattern.
+	// Write to a temp file and install it atomically with the right
+	// ownership/perms via sudo, matching the project's privileged-helper pattern.
 	$tmp = tempnam(sys_get_temp_dir(), 'wg');
 	if ($tmp === false) {
 		return false;

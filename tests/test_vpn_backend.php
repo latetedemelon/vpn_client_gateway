@@ -88,6 +88,14 @@ check('inserts # Server marker when missing', strpos($nw2, '# Server = de1.nordv
 check('marker is in interface section (before [Peer])', strpos($nw2, '# Server') < strpos($nw2, '[Peer]'));
 
 // ---------------------------------------------------------------------------
+echo "wireguard current-server parsing\n";
+check('reads # Server marker', vpn_parse_wg_server($wg) === 'old123.nordvpn.com');
+check('rewritten conf reports new server', vpn_parse_wg_server($nw) === 'us999.nordvpn.com');
+check('falls back to endpoint when no marker',
+	vpn_parse_wg_server("[Interface]\nPrivateKey = x\n\n[Peer]\nEndpoint = 9.9.9.9:51820\n") === '9.9.9.9:51820');
+check('empty/non-string returns empty', vpn_parse_wg_server('') === '' && vpn_parse_wg_server(null) === '');
+
+// ---------------------------------------------------------------------------
 echo "wireguard peer lookup from generated server list\n";
 $generated = __DIR__ . '/../www/vpnmgmt/vpn_providers/nordvpn/vpnservers.xml';
 if (is_readable($generated)) {
