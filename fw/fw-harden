@@ -3,11 +3,17 @@
 # OpenVPN ports used by major providers:
 OPENVPN_UDP_PORTS="53,1194,1197,1198"
 
+# WireGuard port (NordVPN / NordLynx and most other providers):
+WIREGUARD_UDP_PORT="51820"
+
 # OPENVPN Server Tunnel
 OPENVPN_SERVER_TUN="tun0"
 
 # OPENVPN Gateway Tunnel
 OPENVPN_GATEWAY_TUN="tun1"
+
+# WireGuard Gateway Tunnel (NordLynx)
+WIREGUARD_GATEWAY_IF="wg0"
 
 # delete all existing rules
 iptables -Z
@@ -28,6 +34,8 @@ iptables -A OUTPUT -o eth0 -p tcp -m state --state ESTABLISHED --sport 22 -j ACC
 iptables -A INPUT -i eth0 -p udp -m state --state NEW,ESTABLISHED --dport 1194 -j ACCEPT
 iptables -A OUTPUT -o eth0 -p udp -m state --state ESTABLISHED --sport 1194 -j ACCEPT
 iptables -A OUTPUT -o eth0 -p udp -m multiport --dports $OPENVPN_UDP_PORTS -m comment --comment "openvpn" -j ACCEPT
+# Allow UDP traffic on the WireGuard port (VPN handshake/data).
+iptables -A OUTPUT -o eth0 -p udp --dport $WIREGUARD_UDP_PORT -m comment --comment "wireguard" -j ACCEPT
 
 ###OPENVPN GATEWAY TUNNEL###
 # Allow DNS resolution and limited HTTP/S on the VPN Gateway.
@@ -43,6 +51,22 @@ iptables -A INPUT -i $OPENVPN_GATEWAY_TUN -p tcp -m state --state ESTABLISHED --
 iptables -A OUTPUT -o $OPENVPN_GATEWAY_TUN -p tcp -m state --state NEW,ESTABLISHED --dport 443 -j ACCEPT
 # accept inbound vpn initiated traffic
 iptables -A INPUT -i $OPENVPN_GATEWAY_TUN -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+###WIREGUARD GATEWAY TUNNEL###
+# Mirror the gateway-tunnel allowances for the WireGuard interface so the
+# gateway can resolve DNS, sync time and reach update/API endpoints over the
+# encrypted tunnel.
+iptables -A INPUT  -i $WIREGUARD_GATEWAY_IF -p udp -m state --state ESTABLISHED --sport 53 -j ACCEPT
+iptables -A OUTPUT -o $WIREGUARD_GATEWAY_IF -p udp -m state --state NEW,ESTABLISHED --dport 53 -j ACCEPT
+iptables -A INPUT  -i $WIREGUARD_GATEWAY_IF -p tcp -m state --state ESTABLISHED --sport 53 -j ACCEPT
+iptables -A OUTPUT -o $WIREGUARD_GATEWAY_IF -p tcp -m state --state NEW,ESTABLISHED --dport 53 -j ACCEPT
+iptables -A OUTPUT -o $WIREGUARD_GATEWAY_IF -p udp -m udp --dport 123 -m comment --comment "ntp" -j ACCEPT
+iptables -A INPUT  -i $WIREGUARD_GATEWAY_IF -p tcp -m state --state ESTABLISHED --sport 80 -j ACCEPT
+iptables -A OUTPUT -o $WIREGUARD_GATEWAY_IF -p tcp -m state --state NEW,ESTABLISHED --dport 80 -j ACCEPT
+iptables -A INPUT  -i $WIREGUARD_GATEWAY_IF -p tcp -m state --state ESTABLISHED --sport 443 -j ACCEPT
+iptables -A OUTPUT -o $WIREGUARD_GATEWAY_IF -p tcp -m state --state NEW,ESTABLISHED --dport 443 -j ACCEPT
+# accept inbound vpn initiated traffic
+iptables -A INPUT -i $WIREGUARD_GATEWAY_IF -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 ###OPENVPN SERVER TUNNEL###
 # Allow traffic on the TUN interface.
@@ -64,6 +88,15 @@ iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o IPv4dev -j MASQUERADE
 # Masquerade - OPENVPN Client
 iptables -t nat -A POSTROUTING -o $OPENVPN_GATEWAY_TUN -j MASQUERADE
+# Masquerade - WireGuard Client
+iptables -t nat -A POSTROUTING -o $WIREGUARD_GATEWAY_IF -j MASQUERADE
+
+###LINK SERVER TO WIREGUARD TUNNEL###
+iptables -A FORWARD -i $WIREGUARD_GATEWAY_IF -o $OPENVPN_SERVER_TUN -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i $OPENVPN_SERVER_TUN -o $WIREGUARD_GATEWAY_IF -m comment --comment "LAN out to VPN (wg)" -j ACCEPT
+# Forward LAN clients (on eth0) out through the WireGuard tunnel.
+iptables -A FORWARD -i eth0 -o $WIREGUARD_GATEWAY_IF -m comment --comment "LAN out to VPN (wg)" -j ACCEPT
+iptables -A FORWARD -i $WIREGUARD_GATEWAY_IF -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
 
 # add killswitch chain:
 iptables -N killswitch

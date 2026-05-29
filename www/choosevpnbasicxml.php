@@ -10,11 +10,17 @@ foreach($vpnserverinfo->basicvpnservers->servername as $servername){
 	$servernamestr = (string) $servername;
 	$xpathquery = '//vpnserver[servername="' . $servernamestr . '"]';
 	$serverinfo = $vpnserverinfo->xpath($xpathquery);
+	if (empty($serverinfo)) continue;
 	$countrynamestr = $serverinfo[0]->countryname;
-	$xpathquery = '//country[name="' . $countrynamestr . '"]';
 	$regionstr = $serverinfo[0]->regionname;
-	$country = $countryinfo->xpath($xpathquery);
-	$flagfilestr= (string) $country[0]->flagfile;
+	// Prefer a flag file embedded in the server entry (WireGuard provider
+	// lists, keyed by ISO country code); otherwise look it up by name.
+	$flagfilestr = isset($serverinfo[0]->flagfile) ? (string) $serverinfo[0]->flagfile : '';
+	if ($flagfilestr === ''){
+		$xpathquery = '//country[name="' . $countrynamestr . '"]';
+		$country = $countryinfo->xpath($xpathquery);
+		$flagfilestr = !empty($country) ? (string) $country[0]->flagfile : '';
+	}
 	echo "<TD>" . "\n";
 	echo "<A HREF=\".?vpnserver=" . $servernamestr . "\" onclick=\"show_changing_vpn_message();\"><IMG height=60% SRC=\"images/flags/" . $flagfilestr . "\"/></A>" . "\n";
 	echo "<P>" . $countrynamestr;

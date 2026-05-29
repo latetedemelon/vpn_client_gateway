@@ -1,134 +1,155 @@
 #!/bin/bash
+#
+# Update the NordVPN WireGuard (NordLynx) server list for the VPN Client Gateway.
+#
+# This replaces the old OpenVPN-era updater (which relied on NordVPN API
+# endpoints and Python 2 libraries that no longer exist). It queries the
+# current NordVPN public API for every server that supports WireGuard and
+# writes a vpnservers.xml that embeds, for each server, the data the gateway
+# needs to switch to it without any further network calls:
+#
+#   <servername>  hostname (e.g. us11894.nordvpn.com)
+#   <countryname> country, used for grouping/labels
+#   <regionname>  city
+#   <pubkey>      the server's WireGuard public key
+#   <endpoint>    ip:51820
+#   <flagfile>    ISO country-code flag (e.g. US.svg)
+#
+# Requirements: bash, curl, jq.  (No Python, no provider account needed - the
+# server catalogue is public.)
+#
+# Usage:
+#   ./vpn_update.sh [output.xml]
+#
+# Environment overrides:
+#   MAX_PER_COUNTRY   max servers listed per country in the full list (default 4)
+#   BASIC_CODES       space-separated ISO codes for the "basic" flag grid
+#   VPNMGMT_DIR       if set, the generated file is also copied here as
+#                     vpnservers.xml (e.g. /var/www/vpnmgmt)
+#
+set -euo pipefail
 
-# Variables - NORDVPN Specific
-certificates="https://nordvpn.com/api/static/ca_and_tls_auth_certificates.zip"
-configuration="https://nordvpn.com/api/files/zip"
-certdir="/tmp/certs/"
-configdir="/tmp/config/"
-xmlname="vpnservers.xml"
-openvpndir="/etc/openvpn/"
-vpnmgmtdir="/var/www/vpnmgmt/"
+API="https://api.nordvpn.com/v1/servers?filters[servers_technologies][identifier]=wireguard_udp&limit=8000"
+WG_PORT="51820"
+MAX_PER_COUNTRY="${MAX_PER_COUNTRY:-4}"
+BASIC_CODES="${BASIC_CODES:-US GB CA DE NL FR SE CH AU JP SG ES IT NO}"
 
-if [ -x "$(command -v apt-get)" ]; then
-	# Package Installer for required python components below
-	PKG_MANAGER="apt-get"
-	PKG_CACHE="/var/lib/apt/lists/"
-	UPDATE_PKG_CACHE="${PKG_MANAGER} update"
-	PKG_UPDATE="${PKG_MANAGER} upgrade"
-	PKG_INSTALL="${PKG_MANAGER} --yes --fix-missing install"
-	# grep -c will return 1 retVal on 0 matches, block this throwing the set -e with an OR TRUE
-	PKG_COUNT="${PKG_MANAGER} -s -o Debug::NoLocking=true upgrade | grep -c ^Inst || true"
-	INSTALLER_DEPS=( python python-lxml python-pycountry )
-	package_check_install() {
-		dpkg-query -W -f='${Status}' "${1}" 2>/dev/null | grep -c "ok installed" || ${PKG_INSTALL} "${1}"
-	}
-else
-	echo "OS distribution not supported, do you have Raspbian installed?"
-	exit
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OUT="${1:-$SCRIPT_DIR/vpnservers.xml}"
+
+# --- dependency check -------------------------------------------------------
+need() { command -v "$1" >/dev/null 2>&1; }
+
+install_deps() {
+	local missing=()
+	need curl || missing+=("curl")
+	need jq || missing+=("jq")
+	[ ${#missing[@]} -eq 0 ] && return 0
+	echo ":: Installing dependencies: ${missing[*]}"
+	if need apt-get; then
+		sudo apt-get update -qq && sudo apt-get install -y "${missing[@]}"
+	elif need apk; then
+		sudo apk add --no-cache "${missing[@]}"
+	elif need dnf; then
+		sudo dnf install -y "${missing[@]}"
+	elif need pacman; then
+		sudo pacman -Sy --noconfirm "${missing[@]}"
+	else
+		echo "!! Please install: ${missing[*]}" >&2
+		exit 1
+	fi
+}
+
+install_deps
+
+# --- fetch ------------------------------------------------------------------
+TMPJSON="$(mktemp)"
+trap 'rm -f "$TMPJSON"' EXIT
+
+echo ":: Fetching NordVPN WireGuard server catalogue ..."
+curl -fsS -g --max-time 120 "$API" -o "$TMPJSON"
+
+count="$(jq 'length' "$TMPJSON")"
+if [ "$count" -lt 1 ]; then
+	echo "!! No servers returned from the NordVPN API." >&2
+	exit 1
+fi
+echo ":: Retrieved $count WireGuard servers."
+
+# --- build the "basic" flag grid (lowest load per popular country) ----------
+basic_json="$(printf '%s\n' "$BASIC_CODES" | jq -R 'split(" ")')"
+
+basic_xml="$(jq -r --argjson basic "$basic_json" '
+	([ .[] | {host: .hostname, load: .load,
+	          code: (.locations[0].country.code | ascii_upcase
+	                 | if . == "UK" then "GB" else . end)} ]) as $list
+	| $basic[]
+	| . as $c
+	| ($list | map(select(.code == $c)) | sort_by(.load) | .[0]) as $s
+	| select($s != null)
+	| "\t\t<servername>\($s.host)</servername>"
+' "$TMPJSON")"
+
+# --- build the full list (grouped by country, capped per country) -----------
+full_xml="$(jq -r --argjson maxper "$MAX_PER_COUNTRY" '
+	def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;");
+	[ .[] | {
+		host:    .hostname,
+		ip:      .station,
+		load:    .load,
+		country: (.locations[0].country.name),
+		code:    (.locations[0].country.code | ascii_upcase
+		          | if . == "UK" then "GB" else . end),
+		city:    (.locations[0].country.city.name // ""),
+		pub:     ([ .technologies[]? | select(.identifier == "wireguard_udp")
+		            | .metadata[]? | select(.name == "public_key") | .value ] | .[0])
+	} | select(.pub != null and .ip != null and .country != null) ]
+	| group_by(.country)
+	| sort_by(.[0].country)
+	| .[]
+	| sort_by(.load)[0:$maxper][]
+	| "\t<vpnserver>\n"
+	+ "\t\t<servername>\(.host)</servername>\n"
+	+ "\t\t<countryname>\(.country | esc)</countryname>\n"
+	+ "\t\t<regionname>\(.city | esc)</regionname>\n"
+	+ "\t\t<pubkey>\(.pub)</pubkey>\n"
+	+ "\t\t<endpoint>\(.ip):'"$WG_PORT"'</endpoint>\n"
+	+ "\t\t<flagfile>\(.code).svg</flagfile>\n"
+	+ "\t</vpnserver>"
+' "$TMPJSON")"
+
+# --- assemble the XML -------------------------------------------------------
+TMPOUT="$(mktemp)"
+{
+	echo '<?xml version="1.0"?>'
+	echo '<!-- Generated by vpn_update.sh (NordVPN / WireGuard). Re-run periodically to refresh server keys. -->'
+	echo '<vpnserverinfo>'
+	echo '<basicvpnservers>'
+	echo "$basic_xml"
+	echo '</basicvpnservers>'
+	echo '<vpnservers>'
+	echo "$full_xml"
+	echo '</vpnservers>'
+	echo '</vpnserverinfo>'
+} > "$TMPOUT"
+
+# Validate if xmllint is available.
+if need xmllint; then
+	xmllint --noout "$TMPOUT"
 fi
 
-install_dependent_packages() {
-	# Install packages passed in via argument array
-	declare -a argArray1=("${!1}")
+mv "$TMPOUT" "$OUT"
+servers_listed="$(grep -c '<vpnserver>' "$OUT" || true)"
+echo ":: Wrote $servers_listed servers to $OUT"
 
-	for i in "${argArray1[@]}"; do
-		echo -n ":::    Checking for $i..."
-		package_check_install "${i}" &> /dev/null
-		echo " installed!"
-	done
-}
-
-createTempDir() {
-	if [ -d "$1" ]; then
-		echo " Directory exists, not overwriting"
+# --- optionally deploy to the live web directory ----------------------------
+if [ -n "${VPNMGMT_DIR:-}" ]; then
+	if [ -d "$VPNMGMT_DIR" ]; then
+		sudo cp "$OUT" "$VPNMGMT_DIR/vpnservers.xml"
+		echo ":: Deployed to $VPNMGMT_DIR/vpnservers.xml"
 	else
-		mkdir -p $1
+		echo "!! VPNMGMT_DIR ($VPNMGMT_DIR) does not exist; skipping deploy." >&2
 	fi
-}
+fi
 
-removeTempDir() {
-	if [ -d "$1" ]; then
-		rm -r $1
-	else
-		echo " Directory does not exist"
-	fi
-}
-
-fileRetrieval() {
-        # Download and decompress configuration files
-        # Arguement 1 being the remote location and 2
-        # being the local destination
-        TMPFILE=`mktemp`
-        #unzip -j option ignores subdirectories in the zip file
-        wget -q "$1" -O $TMPFILE
-        unzip -a -L -C -q -o -j $TMPFILE -d "$2"
-        rm -r $TMPFILE
-}
-
-function createMAP() {
-PYTHON_ARG="$1" python - <<END
-# -*- coding: utf-8 -*-
-# Requirements
-import lxml.etree as xml
-import pycountry
-import glob
-import os
-
-def createXML(outfile):
-	root = xml.Element("vpnserverinfo")
-	basic = xml.Element("basicvpnservers")
-	full = xml.Element("vpnservers")
-	server = xml.Element("servername")
-	root.append(basic)
-	us_server = xml.SubElement(basic, "servername")
-	us_server.text = ('us388.nordvpn.com')
-	de_server = xml.SubElement(basic, "servername")
-	de_server.text = ('de134.nordvpn.com')
-	fr_server = xml.SubElement(basic, "servername")
-	fr_server.text = ('fr9.nordvpn.com')
-	se_server = xml.SubElement(basic, "servername")
-	se_server.text = ('se14.nordvpn.com')
-	in_server = xml.SubElement(basic, "servername")
-	in_server.text = ('in4.nordvpn.com')
-	il_server = xml.SubElement(basic, "servername")
-	il_server.text = ('il4.nordvpn.com')
-	is_server = xml.SubElement(basic, "servername")
-	is_server.text = ('is3.nordvpn.com')
-	lv_server = xml.SubElement(basic, "servername")
-	lv_server.text = ('lv3.nordvpn.com')
-	root.append(full)
-	list = [os.path.basename(x) for x in glob.glob("/tmp/config/*1194*.*")]
-	for names in list:
-		info = xml.Element("vpnserver")
-		server = xml.SubElement(info, "servername")
-		server.text = names.replace('.udp1194.ovpn','')
-		short = names[:2].upper().replace('UK','GB')
-		country = xml.SubElement(info, "countryname")
-		country.text = pycountry.countries.get(alpha2=short).name
-		region = xml.SubElement(info, "regionname")
-		full.append(info)
-	print xml.tostring(root, pretty_print=True)
-	output_file = open( '/tmp/config/vpnservers.xml', 'w' )
-	output_file.write( '<?xml version="1.0"?>\n' )
-	output_file.write(xml.tostring(root, pretty_print=True))
-	output_file.close()
-
-if __name__ == "__main__":
-    createXML("/tmp/config/vpnservers.xml")
-
-END
-}
-
-createTempDir ${configdir}
-createTempDir ${certdir}
-fileRetrieval ${certificates} ${certdir}
-fileRetrieval ${configuration} ${configdir}
-install_dependent_packages INSTALLER_DEPS[@]
-createMAP ${configdir}
-
-#Add datestamp checker for vpnserver.xml
-cp ${configdir}/vpnservers.xml ${vpnmgmtdir}/vpnservers.xml
-cp ${certdir}/*.* ${openvpndir}
-removeTempDir ${configdir}
-removeTempDir ${certdir}
-
+echo ":: Done."

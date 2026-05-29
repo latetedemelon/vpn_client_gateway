@@ -1,53 +1,8 @@
 <?php
-require_once('util.php');
-$vpnserver=$_GET["vpnserver"];
-//echo "VPN server: $vpnserver\n";
-	$hostname = explode(".", $vpnserver);
-	$subdomain = $hostname[0];
-	$domain = $hostname[1];
-	$tld = $hostname[2];
-if (isset($vpnserver)){
-	if ($vpnserver == "disable" || $vpnserver == "none"){
-		include 'disablevpn.php';
-	}
-	else if ($vpnserver == "enable"){
-		include 'enablevpn.php';
-		// start openvpn service
-                $result = start_service('openvpn');
-	}
-	else {
-		if (file_exists('vpnmgmt/vpn.disabled')){
-			include 'enablevpn.php';
-		}
-		$result = shell_exec('sudo service openvpn status');
-                if ((strpos($result,'Active: active') !== false) or (strpos($result,'is running') !== false) or (strpos($result,'started') !== false)){
-			// echo "Stopping VPN service...\n";
-			$result = stop_service('openvpn');
-		}
-		// modify /etc/openvpn/server.conf with new server name
-                $configfile = file('/etc/openvpn/server.conf');
-                $serverconf = "";
-                foreach($configfile as $line_num => $line){
-                        $line_tokens = preg_split("/[\s]+/",$line);
-                        if ($line_tokens[0] === "remote"){
-                                $portnumber = $line_tokens[2];
-                                $serverconf .= "remote " . $vpnserver . " " . $portnumber . "\n";
-                        }
-			else if ($line_tokens[0] === "ca" && $domain === "nordvpn"){
-				$serverconf .= "ca " . $subdomain . "_" . $domain . "_" . $tld . "_ca.crt " . "\n";
-			}
-			else if ($line_tokens[0] === "tls-auth" && $domain === "nordvpn"){
-				$serverconf .= "tls-auth " . $subdomain . "_" . $domain . "_" . $tld . "_tls.key " . "\n";
-			}
-                        else{
-                                $serverconf .= $line;
-                        }
-                }
-                file_put_contents("/etc/openvpn/server.conf", $serverconf);
-		// start openvpn service
-		$result = start_service('openvpn');
-	}
-	if (host_os_type() == "alpine")
-		$result = save_fs_changes();
-}
+// Backward-compatibility shim.
+//
+// VPN management is now backend-agnostic (OpenVPN or WireGuard) and lives in
+// manage_vpn.php. This file is kept so that any existing references (e.g. the
+// bundled index.php from older releases) keep working.
+require_once(__DIR__ . '/manage_vpn.php');
 ?>

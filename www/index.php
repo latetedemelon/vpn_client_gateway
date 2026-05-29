@@ -3,7 +3,7 @@
 <html lang="en">
 <link rel="stylesheet" type="text/css" href="index.css" />
 <script type="text/javascript" src="http://code.jquery.com/jquery-1.5.2.min.js"></script>
-<?php include 'vpnmgmt/manage_openvpn.php';?>
+<?php include 'vpnmgmt/manage_vpn.php';?>
 <script type="text/javascript">
         function show_advanced() {
 		$("#VPNSection").show();
@@ -29,7 +29,7 @@
 		$("#VPNSection").hide();
 		$("#Admin").show();
 		<?php
-		if(file_exists('vpnmgmt/vpn.disabled')){
+		if(vpn_is_disabled()){
                         echo "$(\"#EnableVPNMenuButton\").show();";
                         echo "$(\"#DisableVPNMenuButton\").hide();";
 		}
@@ -371,7 +371,11 @@ echo "window.history.pushState('','','/');";
 	</div>
 </div>
 <FOOTER>
+<?php if (vpn_is_wireguard()): ?>
+<span id="BackendLabel" class="backendlabel">Powered by WireGuard&reg;</span>
+<?php else: ?>
 <img id="OpenVPNLogo" class="openvpnlogo" src="images/openvpn_logo_powered_by.png" alt="OpenVPN logo"/>
+<?php endif; ?>
 </FOOTER>
 </body>
 </html>
