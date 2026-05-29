@@ -131,6 +131,30 @@ path used to write the file). Parsing was extracted into a tested pure helper.
 
 ## Branch / merge status
 
-`master` and `claude/blissful-cerf-n2sG6` were identical before this work
-(`git diff` empty), so there was nothing to merge between them. All changes here
-are committed on `claude/blissful-cerf-n2sG6` and opened as a PR.
+* **PR #1 — NordVPN + WireGuard support** (everything documented above): merged
+  into `master`.
+* **PR #2 — multi-exit design doc** (`documentation/multi-exit-design.md`, design
+  only, no code): merged into `master` after the QA below.
+* `gh-pages` is the GitHub Pages site branch and is intentionally **not** merged
+  into `master`.
+
+## Multi-exit design doc (PR #2)
+
+`documentation/multi-exit-design.md` captures the proposed design for running
+several WireGuard tunnels at once so different LAN devices can egress through
+different countries at the same time: source-based policy routing keyed per
+device, per-tunnel NAT and a fail-closed kill switch, country-pooled and
+ref-counted connections, MAC-based identity with IP↔MAC reconciliation,
+`max_connections` (default 4), Pi-hole upstream DNS auto-switch, and full
+DNS/IPv4/IPv6/kill-switch leak testing (per-exit and per-client). **Status:
+proposed — no implementation yet.** The top risk to validate before any build is
+the shared `10.5.0.2/32` source address across simultaneous NordLynx tunnels.
+
+## QA before merge (2026-05-29)
+
+* `tests/run.sh` locally: PHP lint **ok**, `bash -n` **ok**, `xmllint` **ok**,
+  unit tests **36/36 PASS** (the `shellcheck` step is advisory and was skipped —
+  not installed in this environment).
+* GitHub Actions CI on PR #2: both check runs reported **success**.
+* PR #2 is documentation-only, so the single-tunnel runtime behaviour is
+  unchanged and there is no code regression surface.
