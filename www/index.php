@@ -330,6 +330,79 @@ echo "window.history.pushState('','','/');";
 		<div id="CurrentVPNSection">
 			<script>$(function(){$("#CurrentVPNSection").load("currentvpnsection.php");}); </script> 
 		</div>
+		<div id="ThroughputSection">
+			<H2>Throughput</H2>
+			<table id="ThroughputTable">
+				<tr>
+					<th class="tpwhat"></th>
+					<th>&#8595; Download</th>
+					<th>&#8593; Upload</th>
+				</tr>
+				<tr>
+					<td class="tplabel">VPN tunnel <span class="tpiface" id="tpVpnIface"></span></td>
+					<td class="tprate" id="tpVpnRx">&hellip;</td>
+					<td class="tprate" id="tpVpnTx">&hellip;</td>
+				</tr>
+				<tr>
+					<td class="tplabel">Whole box <span class="tpiface" id="tpBoxIface"></span></td>
+					<td class="tprate" id="tpBoxRx">&hellip;</td>
+					<td class="tprate" id="tpBoxTx">&hellip;</td>
+				</tr>
+			</table>
+		</div>
+		<script type="text/javascript">
+		// Live throughput meter. Polls throughput.php for cumulative byte
+		// counters and derives the rate from successive samples on the client.
+		(function(){
+			var prev = null;          // previous sample
+			var POLL_MS = 2000;
+
+			function tpFmt(bps){
+				if (bps === null || isNaN(bps)) return "&mdash;";
+				if (bps < 0) bps = 0;
+				var u = ["B/s","KB/s","MB/s","GB/s"], i = 0, v = bps;
+				while (v >= 1024 && i < u.length - 1){ v = v / 1024; i++; }
+				var dp = (i === 0) ? 0 : (v < 10 ? 1 : 0);
+				return v.toFixed(dp) + " " + u[i];
+			}
+
+			function rate(cur, old, dtSec){
+				if (cur === null || old === null) return null;
+				var d = cur - old;
+				if (d < 0) return null;   // counter reset (interface bounced)
+				return d / dtSec;
+			}
+
+			function tick(){
+				if (document.hidden) return;   // skip when tab is backgrounded
+				$.getJSON("throughput.php", function(s){
+					$("#tpVpnIface").text(s.vpn.iface ? "(" + s.vpn.iface + ")" : "");
+					$("#tpBoxIface").text(s.box.iface ? "(" + s.box.iface + ")" : "");
+
+					if (prev && s.t > prev.t){
+						var dt = (s.t - prev.t) / 1000.0;
+						if (s.vpn.up && s.vpn.rx !== null){
+							$("#tpVpnRx").html(tpFmt(rate(s.vpn.rx, prev.vpn.rx, dt)));
+							$("#tpVpnTx").html(tpFmt(rate(s.vpn.tx, prev.vpn.tx, dt)));
+						} else {
+							$("#tpVpnRx").html("VPN off");
+							$("#tpVpnTx").html("&mdash;");
+						}
+						if (s.box.up && s.box.rx !== null){
+							$("#tpBoxRx").html(tpFmt(rate(s.box.rx, prev.box.rx, dt)));
+							$("#tpBoxTx").html(tpFmt(rate(s.box.tx, prev.box.tx, dt)));
+						} else {
+							$("#tpBoxRx").html("&mdash;");
+							$("#tpBoxTx").html("&mdash;");
+						}
+					}
+					prev = s;
+				});
+			}
+
+			$(function(){ tick(); setInterval(tick, POLL_MS); });
+		})();
+		</script>
 		<div id="VPNChooser">
 		<H2>Choose new VPN server:</H2>
 			<div id="ChooseVPNBasic">

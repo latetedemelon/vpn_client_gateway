@@ -607,3 +607,60 @@ footer{
         z-index: 99;
 }
 
+#ThroughputSection {
+        width: 100%;
+        background-color: #E6E6E6;
+        padding-top: 5px;
+        padding-bottom: 8px;
+}
+
+#ThroughputSection H2 {
+        padding-top: 10px;
+        padding-left: 10px;
+        margin-top: 0;
+        margin-bottom: 5px;
+}
+
+#ThroughputTable {
+        width: 96%;
+        margin-left: 2%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-family: "Arial";
+}
+
+#ThroughputTable th {
+        text-align: right;
+        font-family: "Arial";
+        font-size: 90%;
+        color: #4d4d4d;
+        padding: 6px 10px;
+        border-bottom: 1px solid #CCCCCC;
+}
+
+#ThroughputTable th.tpwhat {
+        text-align: left;
+}
+
+#ThroughputTable td {
+        padding: 6px 10px;
+        font-family: "Arial";
+        border-bottom: 1px solid #D9D9D9;
+}
+
+#ThroughputTable td.tplabel {
+        text-align: left;
+}
+
+#ThroughputTable td.tprate {
+        text-align: right;
+        font-family: "Courier";
+        font-weight: bold;
+        white-space: nowrap;
+}
+
+#ThroughputTable .tpiface {
+        color: #808080;
+        font-size: 80%;
+}
+

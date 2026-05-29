@@ -52,6 +52,7 @@ fi
 
 echo "== unit tests =="
 php tests/test_vpn_backend.php
+php tests/test_netstat.php
 
 echo
 echo "All checks complete."

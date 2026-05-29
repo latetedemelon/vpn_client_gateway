@@ -158,3 +158,33 @@ the shared `10.5.0.2/32` source address across simultaneous NordLynx tunnels.
 * GitHub Actions CI on PR #2: both check runs reported **success**.
 * PR #2 is documentation-only, so the single-tunnel runtime behaviour is
   unchanged and there is no code regression surface.
+
+## Throughput meter (live, on the management page)
+
+The management page shows a live **Throughput** panel under "Current VPN server"
+with download/upload rates for two things:
+
+* **VPN tunnel** — the active VPN interface (`wg0` for WireGuard, `tun0` for
+  OpenVPN, via `vpn_iface()`); shown as "VPN off" when the gateway is disabled.
+* **Whole box** — the primary physical NIC (auto-detected, defaults to `eth0`),
+  which carries all traffic in and out of the gateway.
+
+Key design points:
+
+1. **No new privileges.** Counters are read from `/proc/net/dev`, which is
+   world-readable, so the meter needs no `sudo`, touches no firewall/kill-switch
+   state, and is independent of the WireGuard/OpenVPN backend plumbing.
+2. **Rates are computed in the browser** from two successive samples. The
+   endpoint (`www/vpnmgmt/throughput.php`) returns only the cumulative byte
+   counters plus a server timestamp as JSON; the page polls every ~2 s and
+   derives `Δbytes / Δt`. No server-side state and no blocking `sleep`.
+3. **Robustness.** A negative delta (counter reset when an interface bounces) is
+   suppressed; polling pauses while the browser tab is backgrounded
+   (`document.hidden`); the first sample just primes the baseline.
+4. **Testable core.** Parsing of `/proc/net/dev` and the "which interface is the
+   box" choice live in pure functions (`www/vpnmgmt/netstat.php`) covered by
+   `tests/test_netstat.php`.
+
+Files: added `www/vpnmgmt/netstat.php`, `www/vpnmgmt/throughput.php`,
+`tests/test_netstat.php`; edited `www/index.php` (panel + poller),
+`www/index.css` (panel styles) and `tests/run.sh` (run the new tests).
