@@ -90,13 +90,23 @@ Changed:
 
 * `php -l` clean on every PHP file.
 * `bash -n` clean on every shell script.
-* `tests/test_vpn_backend.php`: **32/32 pass** (hostname validation, backend
+* `tests/test_vpn_backend.php`: **36/36 pass** (hostname validation, backend
   selection, OpenVPN rewrite incl. NordVPN cert naming, WireGuard `[Peer]`
-  rewrite + `# Server` marker, peer lookup against the real generated list,
-  end-to-end render).
+  rewrite + `# Server` marker, current-server parsing, peer lookup against the
+  real generated list, end-to-end render).
 * `vpn_update.sh` was run against the **live NordVPN API**; output validated
   with `xmllint`; all emitted flag codes map to existing SVGs (0 missing);
   UK→GB handled.
+* A GitHub Actions workflow (`.github/workflows/ci.yml`) runs all of the above
+  (via `tests/run.sh`) on every push/PR. It is **green** on this branch.
+
+## Bug found and fixed during self-review
+
+`/etc/wireguard/wg0.conf` is root-owned (mode 600). The first cut read it with
+`file_get_contents()` running as the web user (`www-data`), which cannot read
+it — this would have made the "current server" display and server switching
+silently fail in production. Fixed to read via `sudo cat` (the same privileged
+path used to write the file). Parsing was extracted into a tested pure helper.
 
 ## Not verifiable here (needs a Pi / live account) — de-risked how
 
