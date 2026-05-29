@@ -333,28 +333,24 @@ echo "window.history.pushState('','','/');";
 		<div id="ThroughputSection">
 			<H2>Throughput</H2>
 			<table id="ThroughputTable">
-				<tr>
-					<th class="tpwhat"></th>
-					<th>&#8595; Download</th>
-					<th>&#8593; Upload</th>
-				</tr>
-				<tr>
-					<td class="tplabel">VPN tunnel <span class="tpiface" id="tpVpnIface"></span></td>
-					<td class="tprate" id="tpVpnRx">&hellip;</td>
-					<td class="tprate" id="tpVpnTx">&hellip;</td>
-				</tr>
-				<tr>
-					<td class="tplabel">Whole box <span class="tpiface" id="tpBoxIface"></span></td>
-					<td class="tprate" id="tpBoxRx">&hellip;</td>
-					<td class="tprate" id="tpBoxTx">&hellip;</td>
-				</tr>
+				<thead>
+					<tr>
+						<th class="tpwhat">Interface</th>
+						<th>&#8595; RX (in)</th>
+						<th>&#8593; TX (out)</th>
+					</tr>
+				</thead>
+				<tbody id="tpBody">
+					<tr><td class="tplabel">&hellip;</td><td class="tprate">&hellip;</td><td class="tprate">&hellip;</td></tr>
+				</tbody>
 			</table>
+			<p class="tplegend"><strong>WAN</strong> = internet uplink (outflow) &middot; <strong>LAN</strong> = client-facing (inflow) &middot; <strong>VPN</strong> = encrypted tunnel. Per-interface RX (received) / TX (transmitted) by the gateway.</p>
 		</div>
 		<script type="text/javascript">
 		// Live throughput meter. Polls throughput.php for cumulative byte
 		// counters and derives the rate from successive samples on the client.
 		(function(){
-			var prev = null;          // previous sample
+			var prev = null;          // previous sample: { t, m: { iface: {rx,tx} } }
 			var POLL_MS = 2000;
 
 			function tpFmt(bps){
@@ -373,30 +369,40 @@ echo "window.history.pushState('','','/');";
 				return d / dtSec;
 			}
 
+			// Role -> display word + descriptor. On a single-NIC box the uplink
+			// also carries LAN traffic, so it is labelled WAN/LAN.
+			function roleMeta(role, multi){
+				if (role === "vpn") return { word: "VPN", desc: "tunnel" };
+				if (role === "wan") return multi ? { word: "WAN", desc: "outflow" }
+				                                 : { word: "WAN/LAN", desc: "uplink" };
+				return { word: "LAN", desc: "inflow" };
+			}
+
+			function cellRate(r, pm, dt, which){
+				if (r.role === "vpn" && !r.up) return (which === "rx") ? "VPN off" : "&mdash;";
+				if (!r.up || r[which] === null) return "&mdash;";
+				if (pm && pm[r.iface] && dt > 0) return tpFmt(rate(r[which], pm[r.iface][which], dt));
+				return "&hellip;";
+			}
+
 			function tick(){
 				if (document.hidden) return;   // skip when tab is backgrounded
 				$.getJSON("throughput.php", function(s){
-					$("#tpVpnIface").text(s.vpn.iface ? "(" + s.vpn.iface + ")" : "");
-					$("#tpBoxIface").text(s.box.iface ? "(" + s.box.iface + ")" : "");
-
-					if (prev && s.t > prev.t){
-						var dt = (s.t - prev.t) / 1000.0;
-						if (s.vpn.up && s.vpn.rx !== null){
-							$("#tpVpnRx").html(tpFmt(rate(s.vpn.rx, prev.vpn.rx, dt)));
-							$("#tpVpnTx").html(tpFmt(rate(s.vpn.tx, prev.vpn.tx, dt)));
-						} else {
-							$("#tpVpnRx").html("VPN off");
-							$("#tpVpnTx").html("&mdash;");
-						}
-						if (s.box.up && s.box.rx !== null){
-							$("#tpBoxRx").html(tpFmt(rate(s.box.rx, prev.box.rx, dt)));
-							$("#tpBoxTx").html(tpFmt(rate(s.box.tx, prev.box.tx, dt)));
-						} else {
-							$("#tpBoxRx").html("&mdash;");
-							$("#tpBoxTx").html("&mdash;");
-						}
+					var dt = (prev && s.t > prev.t) ? (s.t - prev.t) / 1000.0 : 0;
+					var pm = prev ? prev.m : null;
+					var html = "", m = {};
+					for (var i = 0; i < s.rows.length; i++){
+						var r = s.rows[i], meta = roleMeta(r.role, s.multi);
+						html += '<tr class="tprow tprole-' + r.role + '">'
+						      + '<td class="tplabel"><strong>' + meta.word + '</strong> '
+						      + '<span class="tpiface">' + r.iface + '</span> '
+						      + '<span class="tprole">' + meta.desc + '</span></td>'
+						      + '<td class="tprate">' + cellRate(r, pm, dt, "rx") + '</td>'
+						      + '<td class="tprate">' + cellRate(r, pm, dt, "tx") + '</td></tr>';
+						m[r.iface] = { rx: r.rx, tx: r.tx };
 					}
-					prev = s;
+					$("#tpBody").html(html);
+					prev = { t: s.t, m: m };
 				});
 			}
 

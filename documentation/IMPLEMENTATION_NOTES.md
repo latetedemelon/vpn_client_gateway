@@ -162,18 +162,27 @@ the shared `10.5.0.2/32` source address across simultaneous NordLynx tunnels.
 ## Throughput meter (live, on the management page)
 
 The management page shows a live **Throughput** panel under "Current VPN server"
-with download/upload rates for two things:
+with per-interface RX/TX rates, each row tagged by role:
 
 * **VPN tunnel** — the active VPN interface (`wg0` for WireGuard, `tun0` for
   OpenVPN, via `vpn_iface()`); shown as "VPN off" when the gateway is disabled.
-* **Whole box** — the primary physical NIC (auto-detected, defaults to `eth0`),
-  which carries all traffic in and out of the gateway.
+* **WAN (outflow)** — the physical uplink to the internet, identified as the
+  interface that holds the main-table default route (parsed from
+  `/proc/net/route`; the VPN tunnel is ignored so we report the *physical* NIC
+  even while the tunnel owns the effective default).
+* **LAN (inflow)** — every other physical NIC (client-facing). On a multi-NIC
+  box these are separate rows; on a single-NIC box there is just the one
+  physical NIC, reported as the WAN/uplink (it carries LAN traffic too).
+
+Virtual/bridge/container interfaces (`lo`, `veth*`, `docker*`, `br-*`, other
+`tun*`/`wg*`, …) are excluded.
 
 Key design points:
 
-1. **No new privileges.** Counters are read from `/proc/net/dev`, which is
-   world-readable, so the meter needs no `sudo`, touches no firewall/kill-switch
-   state, and is independent of the WireGuard/OpenVPN backend plumbing.
+1. **No new privileges.** Counters come from `/proc/net/dev` and the route table
+   from `/proc/net/route`, both world-readable, so the meter needs no `sudo`,
+   touches no firewall/kill-switch state, and is independent of the
+   WireGuard/OpenVPN backend plumbing.
 2. **Rates are computed in the browser** from two successive samples. The
    endpoint (`www/vpnmgmt/throughput.php`) returns only the cumulative byte
    counters plus a server timestamp as JSON; the page polls every ~2 s and
@@ -181,9 +190,9 @@ Key design points:
 3. **Robustness.** A negative delta (counter reset when an interface bounces) is
    suppressed; polling pauses while the browser tab is backgrounded
    (`document.hidden`); the first sample just primes the baseline.
-4. **Testable core.** Parsing of `/proc/net/dev` and the "which interface is the
-   box" choice live in pure functions (`www/vpnmgmt/netstat.php`) covered by
-   `tests/test_netstat.php`.
+4. **Testable core.** Parsing of `/proc/net/dev` and `/proc/net/route`, the
+   physical-NIC filter and the WAN/LAN classification all live in pure functions
+   (`www/vpnmgmt/netstat.php`) covered by `tests/test_netstat.php`.
 
 Files: added `www/vpnmgmt/netstat.php`, `www/vpnmgmt/throughput.php`,
 `tests/test_netstat.php`; edited `www/index.php` (panel + poller),
