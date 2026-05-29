@@ -597,3 +597,13 @@ footer{
         z-index: 99;
 }
 
+#BackendLabel {
+        position:relative;
+        float: right;
+        line-height: 50px;
+        padding-right: 15px;
+        font-weight: bold;
+        color: #4d4d4d;
+        z-index: 99;
+}
+

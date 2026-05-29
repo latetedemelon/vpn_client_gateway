@@ -1,49 +1,52 @@
+<?php require_once('vpnmgmt/vpn_backend.php'); ?>
 <H2>Current VPN server:
-<?php 
-if(file_exists('vpnmgmt/vpn.disabled')){
+<?php
+if (vpn_is_disabled()) {
 	echo " none. All traffic originates from your ISP.</H2>";
-}
-else{
-	$file = file_get_contents('/etc/openvpn/server.conf');
-        $matches = array();
-        $t = preg_match('/remote (.*?) \d+/s', $file, $matches);
-        print_r($matches[1]);
-        echo "</H2>";
+} else {
+	$servername = vpn_current_server();
+	echo ($servername !== '' ? htmlspecialchars($servername) : 'unknown');
+	echo "</H2>";
 }
 ?>
 <div id="CurrentVPNFlag">
-<?php 
-if(file_exists('vpnmgmt/vpn.disabled')){
-	$servername='none';
-}
-else{
-	$file = file_get_contents('/etc/openvpn/server.conf');
-	$matches = array();
-	$t = preg_match('/remote (.*?) \d+/s', $file, $matches);
-	$servername=$matches[1];
+<?php
+if (vpn_is_disabled()) {
+	$servername = 'none';
+} else {
+	$servername = vpn_current_server();
 }
 $vpnserverinfo = simplexml_load_file('vpnmgmt/vpnservers.xml');
 $countryinfo = simplexml_load_file('vpnmgmt/countryflags.xml');
 $xpathquery = '//vpnserver[servername="' . (string) $servername . '"]';
 $serverinfo = $vpnserverinfo->xpath($xpathquery);
-if(!empty($serverinfo)){
+if (!empty($serverinfo)) {
 	$countrynamestr = $serverinfo[0]->countryname;
-	$xpathquery = '//country[name="' . $countrynamestr . '"]';
 	$regionstr = $serverinfo[0]->regionname;
-	$country = $countryinfo->xpath($xpathquery);
-	$flagfilestr= (string) $country[0]->flagfile;
+	// Prefer a flag file embedded in the server entry (used by the WireGuard
+	// provider lists, keyed by ISO country code); otherwise fall back to the
+	// name-based lookup in countryflags.xml.
+	$flagfilestr = isset($serverinfo[0]->flagfile) ? (string) $serverinfo[0]->flagfile : '';
+	if ($flagfilestr === '') {
+		$xpathquery = '//country[name="' . $countrynamestr . '"]';
+		$country = $countryinfo->xpath($xpathquery);
+		if (!empty($country)) {
+			$flagfilestr = (string) $country[0]->flagfile;
+		}
+	}
 	echo "<TABLE id=\"CurrentVPNFlagTable\">";
 	echo "<TR><TD>";
-	echo "<img id=\"CurrentVPNFlag\" width=40% src=\"images/flags/" . $flagfilestr . "\">";
-	$location = $countrynamestr;
-	if ($regionstr <> ""){
-	       	$location = $location . " (" . $regionstr . ")";
+	if ($flagfilestr !== '') {
+		echo "<img id=\"CurrentVPNFlag\" width=40% src=\"images/flags/" . htmlspecialchars($flagfilestr) . "\">";
 	}
-	echo "<P>" . $location . "</P>";
+	$location = $countrynamestr;
+	if ($regionstr <> "") {
+		$location = $location . " (" . $regionstr . ")";
+	}
+	echo "<P>" . htmlspecialchars($location) . "</P>";
 	echo "</TD><TD></TD><TD></TD></TR></TABLE>";
-}
-else{
-//	echo "<P><img id=\"DisabledWarning\" width=50px src=\"images/Warning-icon-hi.png\"> VPN service is disabled.</P>";
+} else {
+	// VPN server not found in the list (e.g. list not yet generated).
 }
 ?>
 </div>
