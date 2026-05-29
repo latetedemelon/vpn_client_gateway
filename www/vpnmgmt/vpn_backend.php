@@ -327,6 +327,11 @@ function vpn_render_wireguard_conf($conf, $hostname, $peer)
 // ['pubkey' => ..., 'endpoint' => 'ip:port'] or null.
 function vpn_lookup_wireguard_peer($hostname)
 {
+	// Defence in depth: callers validate too, but never build an xpath from an
+	// unvalidated value.
+	if (!vpn_valid_hostname($hostname)) {
+		return null;
+	}
 	if (!is_readable(VPN_SERVERS_XML)) {
 		return null;
 	}
