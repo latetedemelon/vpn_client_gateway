@@ -18,3 +18,29 @@ jobs:
 
       - name: Run checks
         run: bash tests/run.sh
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the container image
+        run: docker build -f docker/Dockerfile -t vpngw:ci .
+
+      - name: Smoke-test the image (UI responds, PHP executes, no privileges)
+        run: |
+          # No NET_ADMIN/TUN here, so wg/firewall are skipped; the web UI must
+          # still come up. Auth is off by default, so "/" should return 200 and
+          # PHP must have executed (the rendered title appears in the body).
+          docker run -d --name vpngw-ci -p 8080:80 vpngw:ci
+          code=""
+          for i in $(seq 1 30); do
+            code="$(curl -s -o /tmp/body -w '%{http_code}' http://localhost:8080/ || true)"
+            [ "$code" = "200" ] && break
+            sleep 1
+          done
+          echo "HTTP status: ${code:-none}"
+          docker logs vpngw-ci || true
+          docker rm -f vpngw-ci >/dev/null 2>&1 || true
+          [ "$code" = "200" ]
+          grep -q "VPN Client Gateway" /tmp/body

@@ -1,0 +1,5 @@
+# Drop your WireGuard config here as wg0.conf; the compose file mounts this
+# directory at /etc/wireguard. Never commit the config (it holds your private
+# key), so ignore everything except this file.
+*
+!.gitignore

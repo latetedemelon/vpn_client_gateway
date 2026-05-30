@@ -1,8 +1,9 @@
+<?php require_once(__DIR__ . '/vpnmgmt/auth.php'); ?>
 <!doctype html>
 <META HTTP-EQUIV="CONTENT-TYPE" CONTENT="text/html; charset=utf-8">
 <html lang="en">
 <link rel="stylesheet" type="text/css" href="index.css" />
-<script type="text/javascript" src="http://code.jquery.com/jquery-1.5.2.min.js"></script>
+<script type="text/javascript" src="js/jquery-3.7.1.min.js"></script>
 <?php include 'vpnmgmt/manage_vpn.php';?>
 <script type="text/javascript">
         function show_advanced() {

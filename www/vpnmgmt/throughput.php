@@ -13,6 +13,7 @@
 // or services is touched. On a single-NIC box there are no separate LAN rows;
 // the one physical NIC is reported as the WAN/uplink.
 
+require_once(__DIR__ . '/auth.php');
 require_once(__DIR__ . '/vpn_backend.php');
 require_once(__DIR__ . '/netstat.php');
 

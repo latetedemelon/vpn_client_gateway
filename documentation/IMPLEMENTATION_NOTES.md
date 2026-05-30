@@ -197,3 +197,44 @@ Key design points:
 Files: added `www/vpnmgmt/netstat.php`, `www/vpnmgmt/throughput.php`,
 `tests/test_netstat.php`; edited `www/index.php` (panel + poller),
 `www/index.css` (panel styles) and `tests/run.sh` (run the new tests).
+
+## Auth, leak protection, watchdog, multi-vendor & containers
+
+A larger feature pass. Design choices and what is/ isn't verifiable here:
+
+1. **Authentication (`auth.php`, off by default).** Standards-based so it fits
+   most setups: HTTP Basic (RFC 7617, bcrypt) or trusting an upstream SSO/reverse
+   -proxy header (`mode=proxy`). Enforced on include, so a single `require_once`
+   guards every entry point. Decision logic (all modes, Basic-cred extraction,
+   IPv4/IPv6 CIDR trust list) is pure and tested. Default **off** preserves the
+   current behaviour and avoids upgrade lockouts. See `documentation/authentication.md`.
+2. **Configurable interfaces (`netif.php`, `fw/vpngw-fwenv.sh`).** `eth0` is no
+   longer assumed — LAN/WAN come from `/etc/vpngw/interfaces.conf` or are
+   auto-detected (WAN = default-route NIC). Falls back to `eth0`, so single-NIC
+   installs are unchanged.
+3. **Leak protection.** IPv6 egress is blocked (`ip6tables`, fail-closed) so a
+   dual-stack client can't bypass the IPv4 tunnel/kill switch; optional forced
+   DNS DNATs client :53 to the tunnel resolver. Applied both in the live toggle
+   (`vpn_backend.php`) and at install (`fw-template`/`fw-harden`), per
+   `/etc/vpngw/leak.conf`. *Mirrors the existing (untested-here) iptables model;
+   needs on-hardware validation like the rest of the firewall.*
+4. **Watchdog + auto-reconnect (`setup/vpngw-watchdog.sh`).** Health-checks the
+   tunnel (WireGuard handshake age + ping; OpenVPN iface + ping), reconnects, and
+   rotates servers after repeated failures — **never touching the kill switch**,
+   so it stays fail-closed. Installed as a systemd timer or cron by
+   `setup/vpngw-install-services.sh`, which also schedules the server-list refresh.
+5. **Multi-vendor (`provider.php`, `setup/import-wireguard-config.sh`).** Active
+   provider in `/etc/vpngw/provider`; any standard WireGuard config can be
+   imported as the `custom` provider with no vendor-specific code. Backlog in
+   `documentation/providers-backlog.md`.
+6. **Containers (`is_container()`, `docker/`).** Boot-persistence is skipped in a
+   non-systemd container; a Dockerfile + entrypoint + compose example bring up
+   the tunnel/firewall and run the UI. `documentation/lxc-docker.md` covers VM /
+   LXC / Docker requirements.
+
+**Verified here:** `php -l` + `bash -n` clean on all new code; **122 unit tests**
+pass (`tests/test_auth.php`, `tests/test_provider.php`, plus the existing
+backend/netstat suites). **Not verifiable here (needs a Pi/VM/live tunnel):** the
+actual `ip6tables`/DNAT behaviour, watchdog reconnect/rotate against a real
+tunnel, and the Docker image at runtime — all mirror existing working patterns
+and are documented as such.

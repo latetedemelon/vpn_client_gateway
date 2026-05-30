@@ -61,7 +61,7 @@ fi
 # generate firewall script from template
 if [ ${#local_networks_and_computers[@]} -gt 0 ]; then
 	for i in "${local_networks_and_computers[@]}"; do
-		local_network_rules+="iptables -A OUTPUT -d $i -o eth0 -m comment --comment \"local lan\" -j ACCEPT\n"
+		local_network_rules+="iptables -A OUTPUT -d $i -o \"\$WAN_IFACE\" -m comment --comment \"local lan\" -j ACCEPT\n"
 	done
 	sed -e "/local_network_rules/a\\$local_network_rules" fw-template > fw-script
 	#sed "s#.*<local_network>.*#$local_lan_iptables#g" fw-template > fw-script

@@ -1,5 +1,7 @@
 <?php
 require_once(__DIR__ . '/util.php');
+require_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/netif.php');
 
 // ---------------------------------------------------------------------------
 // VPN backend abstraction layer.
@@ -147,6 +149,11 @@ function vpn_is_running()
 
 function vpn_enable_boot()
 {
+	// In a container without systemd there is no boot persistence to manage;
+	// the container's entrypoint brings the tunnel up instead.
+	if (is_container() && !has_systemd()) {
+		return '';
+	}
 	if (vpn_is_wireguard()) {
 		if (has_systemd()) {
 			return shell_exec('sudo systemctl enable ' . escapeshellarg(vpn_service_name()) . ' 2>&1');
@@ -159,6 +166,9 @@ function vpn_enable_boot()
 
 function vpn_disable_boot()
 {
+	if (is_container() && !has_systemd()) {
+		return '';
+	}
 	if (vpn_is_wireguard()) {
 		if (has_systemd()) {
 			return shell_exec('sudo systemctl disable ' . escapeshellarg(vpn_service_name()) . ' 2>&1');
@@ -381,6 +391,7 @@ function vpn_enable()
 
 	$iface = escapeshellarg(vpn_iface());        // wg0 or tun0
 	$match = escapeshellarg(vpn_iface_match());   // wg+ or tun+
+	$lan   = escapeshellarg(vpngw_lan_iface());   // client-facing NIC (was hard-coded eth0)
 
 	// NAT: masquerade everything leaving via the VPN interface.
 	shell_exec('sudo iptables -t nat -F POSTROUTING');
@@ -388,14 +399,18 @@ function vpn_enable()
 
 	// Forwarding: LAN <-> VPN.
 	shell_exec('sudo iptables -F FORWARD');
-	shell_exec('sudo iptables -A FORWARD -i ' . $match . ' -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT');
-	shell_exec('sudo iptables -A FORWARD -i eth0 -o ' . $match . ' -m comment --comment "LAN out to VPN" -j ACCEPT');
+	shell_exec('sudo iptables -A FORWARD -i ' . $match . ' -o ' . $lan . ' -m state --state RELATED,ESTABLISHED -j ACCEPT');
+	shell_exec('sudo iptables -A FORWARD -i ' . $lan . ' -o ' . $match . ' -m comment --comment "LAN out to VPN" -j ACCEPT');
 
 	// Kill switch: with the chain reset to RETURN, the default OUTPUT policy
 	// (DROP, set by the firewall template) blocks any traffic that is not
 	// explicitly allowed out the VPN interface.
 	shell_exec('sudo iptables -F killswitch');
 	shell_exec('sudo iptables -t filter -A killswitch -j RETURN');
+
+	// Leak protection: block IPv6 egress and (optionally) force client DNS
+	// through the tunnel, per /etc/vpngw/leak.conf.
+	vpn_apply_leakguard(true);
 
 	shell_exec("sudo su -c 'iptables-save > /etc/iptables/rules.v4'");
 
@@ -412,20 +427,89 @@ function vpn_disable()
 	vpn_stop();
 	vpn_disable_boot();
 
+	$wan = escapeshellarg(vpngw_wan_iface());   // internet uplink (was hard-coded eth0)
+	$lan = escapeshellarg(vpngw_lan_iface());   // client-facing NIC
+
 	shell_exec('sudo iptables -t nat -F POSTROUTING');
-	shell_exec('sudo iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE');
+	shell_exec('sudo iptables -t nat -A POSTROUTING -o ' . $wan . ' -j MASQUERADE');
 
 	shell_exec('sudo iptables -F FORWARD');
-	shell_exec('sudo iptables -A FORWARD -i eth0 -o eth0 -m comment --comment "LAN forwarding" -j ACCEPT');
+	shell_exec('sudo iptables -A FORWARD -i ' . $lan . ' -o ' . $wan . ' -m comment --comment "LAN forwarding" -j ACCEPT');
 
 	// Disarm the kill switch (allow outbound traffic over the LAN/ISP link).
 	shell_exec('sudo iptables -F killswitch');
-	shell_exec('sudo iptables -t filter -A killswitch -o eth0 -j ACCEPT');
+	shell_exec('sudo iptables -t filter -A killswitch -o ' . $wan . ' -j ACCEPT');
+
+	// Restore IPv6 and drop forced-DNS redirection (normal ISP path).
+	vpn_apply_leakguard(false);
 
 	shell_exec("sudo su -c 'iptables-save > /etc/iptables/rules.v4'");
 
 	if (host_os_type() == 'alpine') {
 		save_fs_changes();
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Leak protection (IPv6 egress block + forced DNS)
+// ---------------------------------------------------------------------------
+
+// Apply ($on=true) or remove ($on=false) leak protection per /etc/vpngw/leak.conf:
+//   block_ipv6 = true|false  (default true)  drop IPv6 forward/egress so a
+//                                            dual-stack client cannot bypass the
+//                                            IPv4 tunnel and kill switch
+//   force_dns  = true|false  (default false) DNAT client :53 to dns_server so
+//                                            devices cannot use their own DNS
+//   dns_server = <ipv4>      (default 103.86.96.100, NordLynx DNS)
+function vpn_apply_leakguard($on)
+{
+	$cfg       = vpngw_load_conf('/etc/vpngw/leak.conf');
+	$block_v6  = vpngw_conf_bool(isset($cfg['block_ipv6']) ? $cfg['block_ipv6'] : null, true);
+	$force_dns = vpngw_conf_bool(isset($cfg['force_dns']) ? $cfg['force_dns'] : null, false);
+	$dns       = (isset($cfg['dns_server']) && $cfg['dns_server'] !== '') ? $cfg['dns_server'] : '103.86.96.100';
+	if (!filter_var($dns, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+		$dns = '103.86.96.100';
+	}
+	$lan    = escapeshellarg(vpngw_lan_iface());
+	$dnsarg = escapeshellarg($dns . ':53');
+
+	vpn_block_ipv6($on && $block_v6);
+
+	// Clear any prior DNS-force rules first (idempotent), then (re)add if on.
+	foreach (array('udp', 'tcp') as $p) {
+		shell_exec('sudo iptables -t nat -D PREROUTING -i ' . $lan . ' -p ' . $p
+			. ' --dport 53 -j DNAT --to-destination ' . $dnsarg . ' 2>/dev/null');
+	}
+	if ($on && $force_dns) {
+		foreach (array('udp', 'tcp') as $p) {
+			shell_exec('sudo iptables -t nat -A PREROUTING -i ' . $lan . ' -p ' . $p
+				. ' --dport 53 -j DNAT --to-destination ' . $dnsarg);
+		}
+	}
+}
+
+// Fail-closed IPv6: when enabled, drop all IPv6 forwarding and egress (keeping
+// loopback + ICMPv6/NDP) so the gateway never leaks IPv6. When disabled, reset
+// the IPv6 policy to ACCEPT. No-op if ip6tables is unavailable.
+function vpn_block_ipv6($on)
+{
+	if (trim((string) shell_exec('command -v ip6tables 2>/dev/null')) === '') {
+		return;
+	}
+	if ($on) {
+		shell_exec('sudo ip6tables -P INPUT DROP');
+		shell_exec('sudo ip6tables -P FORWARD DROP');
+		shell_exec('sudo ip6tables -P OUTPUT DROP');
+		shell_exec('sudo ip6tables -F');
+		shell_exec('sudo ip6tables -A INPUT -i lo -j ACCEPT');
+		shell_exec('sudo ip6tables -A OUTPUT -o lo -j ACCEPT');
+		shell_exec('sudo ip6tables -A INPUT -p ipv6-icmp -j ACCEPT');
+		shell_exec('sudo ip6tables -A OUTPUT -p ipv6-icmp -j ACCEPT');
+	} else {
+		shell_exec('sudo ip6tables -P INPUT ACCEPT');
+		shell_exec('sudo ip6tables -P FORWARD ACCEPT');
+		shell_exec('sudo ip6tables -P OUTPUT ACCEPT');
+		shell_exec('sudo ip6tables -F');
 	}
 }
 ?>

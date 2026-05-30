@@ -1,4 +1,5 @@
 <?php
+require_once(__DIR__ . '/vpnmgmt/auth.php');
 $vpnserverinfo = simplexml_load_file('vpnmgmt/vpnservers.xml');
 $countryinfo = simplexml_load_file('vpnmgmt/countryflags.xml');
 $lastcountry= NULL;
