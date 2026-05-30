@@ -31,7 +31,24 @@ realm=VPN Client Gateway
 ```
 
 > Serve the page over HTTPS (or behind a TLS-terminating reverse proxy) so Basic
-> credentials aren't sent in clear text.
+> credentials aren't sent in clear text — see **HTTPS** below.
+
+## HTTPS for the management UI
+
+Basic credentials (and everything else) cross the LAN in cleartext over plain
+HTTP, and the gateway sits on the network path by design. Serve the UI over TLS:
+
+```bash
+sudo ./setup/enable-https.sh            # self-signed cert + Apache TLS
+# or: sudo ./setup/enable-https.sh gateway.lan
+```
+
+This generates a self-signed certificate under `/etc/vpngw/tls/`, enables
+Apache's TLS site, adds an HSTS header and an HTTP→HTTPS redirect. Browsers warn
+once on the self-signed cert; trust it (or install a CA-signed/Let's Encrypt cert
+at the same paths). If you already terminate TLS at a reverse proxy
+(nginx/Traefik/Caddy) or via Tailscale Serve, you don't need this — just proxy to
+the gateway and keep auth on.
 
 ## `proxy` — trust an upstream SSO / reverse proxy
 

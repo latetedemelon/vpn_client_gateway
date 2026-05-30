@@ -11,7 +11,7 @@ follow-ups.
 |----|-----|---------|--------|
 | H1 | High | CSRF on destructive actions (reboot/shutdown/disable-VPN/switch) — GET, no token | **Open** |
 | H2 | High | Web tier is root-equivalent via broad `sudo` (`su`, `cat`, `install`) | **Open** |
-| H3 | High | jQuery loaded over plaintext HTTP (MITM/supply-chain); admin UI is HTTP-only | **Fixed** — jQuery vendored locally (`www/js/jquery-3.7.1.min.js`, SRI-verified) |
+| H3 | High | jQuery loaded over plaintext HTTP (MITM/supply-chain); admin UI is HTTP-only | **Fixed** — jQuery removed entirely (UI is now vanilla JS, no third-party script); HTTPS available via `setup/enable-https.sh` |
 | H4 | High | Container ships unauthenticated control UI on `--network host` | **Mitigated** — entrypoint prints a loud "auth is OFF" warning; docs push auth-on |
 | M1 | Medium | Proxy/SSO auth bypass when `trusted_proxies` is unset (header spoofing) | **Fixed** — proxy mode now fails closed if `trusted_proxies` is unset |
 | M2 | Medium | Reflected XSS in `iplocation.php` (unescaped external data over HTTP) | **Fixed** — all output HTML-escaped; lookups use HTTPS + TLS verify; IP validated |
