@@ -1,5 +1,5 @@
 <h1>Pi-Powered VPN Client Gateway</h1>
-The VPN Client Gateway forwards network traffic through a Virtual Private Network connection. To facilitate geospoofing for media streaming, it includes a management web page that allows you to switch VPN servers by simply clicking on a country flag.
+The VPN Client Gateway forwards network traffic through a Virtual Private Network connection. To facilitate geospoofing for media streaming, it includes a management web page that allows you to switch VPN servers by simply clicking on a country flag. The management page also shows a live **throughput meter** with per-interface RX/TX rates — the VPN tunnel plus each physical NIC, labelled by role (the WAN/uplink that carries traffic out to the internet vs. the LAN, client-facing NICs).
 
 To build your own VPN Client Gateway you will need a Raspberry Pi (or similar lightweight Linux computer) and a [Private Internet Access](https://www.privateinternetaccess.com), [PureVPN](https://www.purevpn.com/), [Newshosting](https://www.newshosting.com/), or [NordVPN](https://www.nordvpn.com/) VPN account.
 

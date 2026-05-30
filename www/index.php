@@ -330,6 +330,85 @@ echo "window.history.pushState('','','/');";
 		<div id="CurrentVPNSection">
 			<script>$(function(){$("#CurrentVPNSection").load("currentvpnsection.php");}); </script> 
 		</div>
+		<div id="ThroughputSection">
+			<H2>Throughput</H2>
+			<table id="ThroughputTable">
+				<thead>
+					<tr>
+						<th class="tpwhat">Interface</th>
+						<th>&#8595; RX (in)</th>
+						<th>&#8593; TX (out)</th>
+					</tr>
+				</thead>
+				<tbody id="tpBody">
+					<tr><td class="tplabel">&hellip;</td><td class="tprate">&hellip;</td><td class="tprate">&hellip;</td></tr>
+				</tbody>
+			</table>
+			<p class="tplegend"><strong>WAN</strong> = internet uplink (outflow) &middot; <strong>LAN</strong> = client-facing (inflow) &middot; <strong>VPN</strong> = encrypted tunnel. Per-interface RX (received) / TX (transmitted) by the gateway.</p>
+		</div>
+		<script type="text/javascript">
+		// Live throughput meter. Polls throughput.php for cumulative byte
+		// counters and derives the rate from successive samples on the client.
+		(function(){
+			var prev = null;          // previous sample: { t, m: { iface: {rx,tx} } }
+			var POLL_MS = 2000;
+
+			function tpFmt(bps){
+				if (bps === null || isNaN(bps)) return "&mdash;";
+				if (bps < 0) bps = 0;
+				var u = ["B/s","KB/s","MB/s","GB/s"], i = 0, v = bps;
+				while (v >= 1024 && i < u.length - 1){ v = v / 1024; i++; }
+				var dp = (i === 0) ? 0 : (v < 10 ? 1 : 0);
+				return v.toFixed(dp) + " " + u[i];
+			}
+
+			function rate(cur, old, dtSec){
+				if (cur === null || old === null) return null;
+				var d = cur - old;
+				if (d < 0) return null;   // counter reset (interface bounced)
+				return d / dtSec;
+			}
+
+			// Role -> display word + descriptor. On a single-NIC box the uplink
+			// also carries LAN traffic, so it is labelled WAN/LAN.
+			function roleMeta(role, multi){
+				if (role === "vpn") return { word: "VPN", desc: "tunnel" };
+				if (role === "wan") return multi ? { word: "WAN", desc: "outflow" }
+				                                 : { word: "WAN/LAN", desc: "uplink" };
+				return { word: "LAN", desc: "inflow" };
+			}
+
+			function cellRate(r, pm, dt, which){
+				if (r.role === "vpn" && !r.up) return (which === "rx") ? "VPN off" : "&mdash;";
+				if (!r.up || r[which] === null) return "&mdash;";
+				if (pm && pm[r.iface] && dt > 0) return tpFmt(rate(r[which], pm[r.iface][which], dt));
+				return "&hellip;";
+			}
+
+			function tick(){
+				if (document.hidden) return;   // skip when tab is backgrounded
+				$.getJSON("throughput.php", function(s){
+					var dt = (prev && s.t > prev.t) ? (s.t - prev.t) / 1000.0 : 0;
+					var pm = prev ? prev.m : null;
+					var html = "", m = {};
+					for (var i = 0; i < s.rows.length; i++){
+						var r = s.rows[i], meta = roleMeta(r.role, s.multi);
+						html += '<tr class="tprow tprole-' + r.role + '">'
+						      + '<td class="tplabel"><strong>' + meta.word + '</strong> '
+						      + '<span class="tpiface">' + r.iface + '</span> '
+						      + '<span class="tprole">' + meta.desc + '</span></td>'
+						      + '<td class="tprate">' + cellRate(r, pm, dt, "rx") + '</td>'
+						      + '<td class="tprate">' + cellRate(r, pm, dt, "tx") + '</td></tr>';
+						m[r.iface] = { rx: r.rx, tx: r.tx };
+					}
+					$("#tpBody").html(html);
+					prev = { t: s.t, m: m };
+				});
+			}
+
+			$(function(){ tick(); setInterval(tick, POLL_MS); });
+		})();
+		</script>
 		<div id="VPNChooser">
 		<H2>Choose new VPN server:</H2>
 			<div id="ChooseVPNBasic">
