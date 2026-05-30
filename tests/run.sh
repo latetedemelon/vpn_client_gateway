@@ -62,6 +62,7 @@ php tests/test_vpn_backend.php
 php tests/test_netstat.php
 php tests/test_auth.php
 php tests/test_provider.php
+php tests/test_status.php
 
 echo
 echo "All checks complete."
