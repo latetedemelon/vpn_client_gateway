@@ -1,4 +1,5 @@
 <?php
+require_once(__DIR__ . '/auth.php');
 // create curl resource 
         $ch = curl_init(); 
 // get our public IP address 

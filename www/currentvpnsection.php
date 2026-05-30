@@ -1,4 +1,4 @@
-<?php require_once('vpnmgmt/vpn_backend.php'); ?>
+<?php require_once(__DIR__ . '/vpnmgmt/auth.php'); require_once('vpnmgmt/vpn_backend.php'); ?>
 <H2>Current VPN server:
 <?php
 if (vpn_is_disabled()) {

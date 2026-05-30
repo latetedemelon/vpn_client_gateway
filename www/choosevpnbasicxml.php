@@ -1,4 +1,5 @@
 <?php
+require_once(__DIR__ . '/vpnmgmt/auth.php');
 $columns=3;
 $counter=1;
 echo "<TABLE class=\"ChoicesTable\">\n<TR>\n";
