@@ -74,21 +74,21 @@ check('basic with no configured creds -> denied', $d['ok'] === false);
 
 // ---------------------------------------------------------------------------
 echo "auth decision: proxy / SSO header\n";
-$cfg = array('mode' => 'proxy'); // default header Remote-User
-$d = vpngw_auth_decision($cfg, array('HTTP_REMOTE_USER' => 'alice'));
-check('user header present -> allowed', $d['ok'] === true && $d['mode'] === 'proxy');
-$d = vpngw_auth_decision($cfg, array());
+// proxy mode requires trusted_proxies, else it fails closed.
+$d = vpngw_auth_decision(array('mode' => 'proxy'), array('HTTP_REMOTE_USER' => 'eve'));
+check('proxy without trusted_proxies -> denied (fail closed)', $d['ok'] === false && $d['status'] === 500);
+
+$cfg = array('mode' => 'proxy', 'trusted_proxies' => '10.0.0.0/8'); // default header Remote-User
+$d = vpngw_auth_decision($cfg, array('HTTP_REMOTE_USER' => 'alice', 'REMOTE_ADDR' => '10.0.0.5'));
+check('user header from trusted proxy -> allowed', $d['ok'] === true && $d['mode'] === 'proxy');
+$d = vpngw_auth_decision($cfg, array('REMOTE_ADDR' => '10.0.0.5'));
 check('user header absent -> 403', $d['ok'] === false && $d['status'] === 403);
+$d = vpngw_auth_decision($cfg, array('HTTP_REMOTE_USER' => 'eve', 'REMOTE_ADDR' => '8.8.8.8'));
+check('header from untrusted address -> 403', $d['ok'] === false && $d['status'] === 403);
 
-$cfg = array('mode' => 'proxy', 'user_header' => 'X-Forwarded-User');
-$d = vpngw_auth_decision($cfg, array('HTTP_X_FORWARDED_USER' => 'bob'));
-check('custom user_header honored', $d['ok'] === true);
-
-$cfg = array('mode' => 'proxy', 'trusted_proxies' => '10.0.0.0/8, 127.0.0.1');
-$d = vpngw_auth_decision($cfg, array('HTTP_REMOTE_USER' => 'bob', 'REMOTE_ADDR' => '10.1.2.3'));
-check('trusted proxy (CIDR) allowed', $d['ok'] === true);
-$d = vpngw_auth_decision($cfg, array('HTTP_REMOTE_USER' => 'bob', 'REMOTE_ADDR' => '8.8.8.8'));
-check('untrusted proxy -> 403', $d['ok'] === false && $d['status'] === 403);
+$cfg = array('mode' => 'proxy', 'user_header' => 'X-Forwarded-User', 'trusted_proxies' => '127.0.0.1, ::1');
+$d = vpngw_auth_decision($cfg, array('HTTP_X_FORWARDED_USER' => 'bob', 'REMOTE_ADDR' => '127.0.0.1'));
+check('custom user_header honored (trusted)', $d['ok'] === true);
 
 // ---------------------------------------------------------------------------
 echo "auth decision: invalid mode fails closed\n";

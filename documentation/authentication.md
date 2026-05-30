@@ -43,12 +43,13 @@ gateway trust the authenticated-user header it injects. Compatible with
 ```ini
 mode=proxy
 user_header=Remote-User           # whatever your proxy sets (Remote-User, X-Forwarded-User, …)
-trusted_proxies=127.0.0.1,::1     # optional: only accept the header from these REMOTE_ADDRs
+trusted_proxies=127.0.0.1,::1     # REQUIRED: only accept the header from these REMOTE_ADDRs
 ```
 
-The request is allowed when the header is present (and, if `trusted_proxies` is
-set, when it came from a trusted address). Always set `trusted_proxies` (and
-strip the header at the proxy) so a client can't simply send the header itself.
+`trusted_proxies` is **required** in proxy mode: if it is unset the gateway
+**fails closed** (denies every request), because otherwise any client could
+authenticate by simply sending the user header itself. Set it to your proxy's
+address(es), and strip the header at the proxy so clients can't supply it.
 
 Example (nginx in front of the gateway):
 

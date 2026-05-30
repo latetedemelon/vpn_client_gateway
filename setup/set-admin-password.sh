@@ -33,7 +33,7 @@ HASH="$(VPNGW_PW="$PW" php -r 'echo password_hash(getenv("VPNGW_PW"), PASSWORD_D
 [ -n "$HASH" ] || { echo "Failed to hash password." >&2; exit 1; }
 
 install -d -m 755 "$(dirname "$AUTH_CONF")"
-umask 022
+umask 077
 cat > "$AUTH_CONF" <<EOF
 # VPN Client Gateway management-page authentication.
 #
@@ -51,9 +51,20 @@ realm=VPN Client Gateway
 #user_header=Remote-User
 #trusted_proxies=127.0.0.1,::1
 EOF
-# Contains only a bcrypt hash (not the plaintext); the web user must be able to
-# read it, so it is world-readable. On a shared host, tighten to the web group.
-chmod 644 "$AUTH_CONF"
+# Holds a bcrypt hash (not the plaintext), but restrict it to root + the web
+# server's group so other local users can't read it for offline cracking.
+WEB_GROUP=""
+for g in www-data apache nginx http; do
+	if getent group "$g" >/dev/null 2>&1; then WEB_GROUP="$g"; break; fi
+done
+if [ -n "$WEB_GROUP" ]; then
+	chown "root:$WEB_GROUP" "$AUTH_CONF" && chmod 640 "$AUTH_CONF"
+	echo "Permissions: 0640 root:$WEB_GROUP"
+else
+	chmod 644 "$AUTH_CONF"
+	echo "Could not detect the web group; left $AUTH_CONF as 0644." >&2
+	echo "Tighten it: chown root:<web-group> $AUTH_CONF && chmod 640 $AUTH_CONF" >&2
+fi
 
 echo "Wrote $AUTH_CONF (mode=basic, username=$USERNAME)."
 echo "Reload the page; the browser should now prompt for credentials."

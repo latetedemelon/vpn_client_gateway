@@ -89,4 +89,5 @@ Notes and caveats:
   explicitly.
 - **Auth:** put the management UI behind authentication (`/etc/vpngw/auth.conf`,
   see `documentation/authentication.md`) before exposing it — with `--network
-  host` the UI is reachable on the host's `:80`.
+  host` the UI is reachable on the host's `:80`. The entrypoint prints a loud
+  warning at startup whenever auth is off.

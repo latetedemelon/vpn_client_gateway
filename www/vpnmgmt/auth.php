@@ -68,9 +68,20 @@ function vpngw_auth_decision(array $cfg, array $server)
 		$skey = 'HTTP_' . strtoupper(str_replace('-', '_', $hdr));
 		$user = isset($server[$skey]) ? trim((string) $server[$skey]) : '';
 
+		// Fail closed when no trusted proxy is configured: otherwise any client
+		// could authenticate simply by sending the user header itself.
 		$trusted = isset($cfg['trusted_proxies']) ? trim((string) $cfg['trusted_proxies']) : '';
-		$remote  = isset($server['REMOTE_ADDR']) ? (string) $server['REMOTE_ADDR'] : '';
-		$proxy_ok = ($trusted === '') ? true : vpngw_ip_in_list($remote, $trusted);
+		if ($trusted === '') {
+			return array(
+				'ok'      => false,
+				'status'  => 500,
+				'headers' => array(),
+				'body'    => "Auth misconfigured: proxy mode requires 'trusted_proxies'.\n",
+				'mode'    => 'proxy',
+			);
+		}
+		$remote   = isset($server['REMOTE_ADDR']) ? (string) $server['REMOTE_ADDR'] : '';
+		$proxy_ok = vpngw_ip_in_list($remote, $trusted);
 
 		if ($user !== '' && $proxy_ok) {
 			return array('ok' => true, 'status' => 200, 'headers' => array(), 'body' => '', 'mode' => 'proxy');

@@ -17,6 +17,15 @@ sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 \
 	|| log "could not set net.ipv4.ip_forward (pass --sysctl net.ipv4.ip_forward=1)"
 
 install -d -m 755 /etc/vpngw
+
+# Warn loudly if the control UI will be unauthenticated -- dangerous especially
+# under --network host, where it is reachable on the host's :80.
+if ! grep -qiE '^[[:space:]]*mode[[:space:]]*=[[:space:]]*(basic|proxy)' /etc/vpngw/auth.conf 2>/dev/null; then
+	log "WARNING: management UI auth is OFF -- anyone who can reach this container"
+	log "         can switch servers, disable the VPN, reboot or shut down the box."
+	log "         Configure /etc/vpngw/auth.conf (see documentation/authentication.md)."
+fi
+
 if [ -f /etc/wireguard/wg0.conf ] && [ ! -f /etc/vpngw/backend ]; then
 	echo wireguard > /etc/vpngw/backend
 fi

@@ -12,8 +12,15 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     # image: yourrepo/vpn-client-gateway:latest   # or use a prebuilt image
+    cap_drop:
+      - ALL
     cap_add:
-      - NET_ADMIN
+      - NET_ADMIN          # manage WireGuard / iptables
+      - NET_BIND_SERVICE   # bind the management UI on :80
+    # security_opt:
+    #   # no-new-privileges blocks the web user's sudo (security audit finding
+    #   # H2); enable it only after the sudo model is replaced with wrappers.
+    #   - no-new-privileges:true
     devices:
       - "/dev/net/tun:/dev/net/tun"
     sysctls:
