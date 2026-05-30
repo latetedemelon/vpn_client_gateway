@@ -43,8 +43,7 @@ else
 fi
 
 log "starting web UI on :80"
-# shellcheck disable=SC1091
-. /etc/apache2/envvars 2>/dev/null || true
-# Apache as PID 1: handles signals; the tunnel/firewall live in this container's
-# netns and are torn down with it (except under --network host).
-exec apache2ctl -DFOREGROUND
+# Apache as PID 1 (php:apache ships apache2-foreground): it handles signals; the
+# tunnel/firewall live in this container's netns and are torn down with it
+# (except under --network host).
+exec apache2-foreground
