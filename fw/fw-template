@@ -6,6 +6,15 @@ OPENVPN_UDP_PORTS="53,1194,1197,1198"
 # WireGuard port (NordVPN / NordLynx and most other providers):
 WIREGUARD_UDP_PORT="51820"
 
+# Resolve LAN/WAN interfaces + leak settings (interfaces.conf / leak.conf).
+# Falls back to eth0 for both, preserving the original single-NIC behaviour.
+FW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -r "$FW_DIR/vpngw-fwenv.sh" ]; then
+	. "$FW_DIR/vpngw-fwenv.sh"
+else
+	LAN_IFACE="eth0"; WAN_IFACE="eth0"
+fi
+
 # delete all existing rules
 iptables -Z
 iptables --flush
@@ -28,25 +37,25 @@ iptables -A OUTPUT -o lo -m comment --comment "loopback" -j ACCEPT
 # local_network_rules (added by fw-config script):
 
 # allow incoming from lan, outgoing thru vpn:
-iptables -I INPUT -i eth0 -m comment --comment "In from LAN" -j ACCEPT
+iptables -I INPUT -i "$LAN_IFACE" -m comment --comment "In from LAN" -j ACCEPT
 iptables -I OUTPUT -o tun+ -m comment --comment "Out to VPN (openvpn)" -j ACCEPT
 iptables -I OUTPUT -o wg+ -m comment --comment "Out to VPN (wireguard)" -j ACCEPT
 
 # allow outbound services:
-iptables -A OUTPUT -o eth0 -p icmp -m comment --comment "icmp" -j ACCEPT
-iptables -A OUTPUT -o eth0 -p udp -m multiport --dports $OPENVPN_UDP_PORTS -m comment --comment "openvpn" -j ACCEPT
-iptables -A OUTPUT -o eth0 -p udp -m udp --dport $WIREGUARD_UDP_PORT -m comment --comment "wireguard" -j ACCEPT
-iptables -A OUTPUT -o eth0 -p tcp -m tcp --sport 22 -m comment --comment "ssh" -j ACCEPT
-iptables -A OUTPUT -o eth0 -p udp -m udp --dport 123 -m comment --comment "ntp" -j ACCEPT
-iptables -A OUTPUT -o eth0 -p udp -m udp --dport 53 -m comment --comment "dns" -j ACCEPT
-iptables -A OUTPUT -o eth0 -p tcp -m tcp --dport 53 -m comment --comment "dns" -j ACCEPT
+iptables -A OUTPUT -o "$WAN_IFACE" -p icmp -m comment --comment "icmp" -j ACCEPT
+iptables -A OUTPUT -o "$WAN_IFACE" -p udp -m multiport --dports $OPENVPN_UDP_PORTS -m comment --comment "openvpn" -j ACCEPT
+iptables -A OUTPUT -o "$WAN_IFACE" -p udp -m udp --dport $WIREGUARD_UDP_PORT -m comment --comment "wireguard" -j ACCEPT
+iptables -A OUTPUT -o "$WAN_IFACE" -p tcp -m tcp --sport 22 -m comment --comment "ssh" -j ACCEPT
+iptables -A OUTPUT -o "$WAN_IFACE" -p udp -m udp --dport 123 -m comment --comment "ntp" -j ACCEPT
+iptables -A OUTPUT -o "$WAN_IFACE" -p udp -m udp --dport 53 -m comment --comment "dns" -j ACCEPT
+iptables -A OUTPUT -o "$WAN_IFACE" -p tcp -m tcp --dport 53 -m comment --comment "dns" -j ACCEPT
 iptables -A OUTPUT -p UDP --dport 67:68 -m comment --comment "dhcp" -j ACCEPT
 
 # allow vpn forwarding (OpenVPN: tun+, WireGuard: wg+)
-iptables -A FORWARD -i tun+ -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -A FORWARD -i eth0 -o tun+ -m comment --comment "LAN out to VPN (openvpn)" -j ACCEPT
-iptables -A FORWARD -i wg+ -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
-iptables -A FORWARD -i eth0 -o wg+ -m comment --comment "LAN out to VPN (wireguard)" -j ACCEPT
+iptables -A FORWARD -i tun+ -o "$LAN_IFACE" -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i "$LAN_IFACE" -o tun+ -m comment --comment "LAN out to VPN (openvpn)" -j ACCEPT
+iptables -A FORWARD -i wg+ -o "$LAN_IFACE" -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A FORWARD -i "$LAN_IFACE" -o wg+ -m comment --comment "LAN out to VPN (wireguard)" -j ACCEPT
 
 # nat the gateway
 iptables -t nat -A POSTROUTING -o tun+ -j MASQUERADE
@@ -67,7 +76,7 @@ iptables -A INPUT -i tun+ -m state --state ESTABLISHED,RELATED -j ACCEPT
 iptables -A INPUT -i wg+ -m state --state ESTABLISHED,RELATED -j ACCEPT
 
 # accept outbound lan initiated traffic
-iptables -A OUTPUT -o eth0 -m state --state RELATED,ESTABLISHED -j ACCEPT
+iptables -A OUTPUT -o "$WAN_IFACE" -m state --state RELATED,ESTABLISHED -j ACCEPT
 
 # accept all outbound lan traffic
 
@@ -89,6 +98,10 @@ iptables -A LOGGING -j DROP
 # logging badpackets chain
 iptables -A BADPKT_LOGGING -m limit --limit 2/sec -j LOG --log-prefix "IPTables- BADPACKETS: " --log-level 4
 iptables -A BADPKT_LOGGING -j DROP
+
+# leak protection: IPv6 egress block + optional forced DNS (see leak.conf)
+type vpngw_apply_ipv6_block >/dev/null 2>&1 && vpngw_apply_ipv6_block
+type vpngw_apply_force_dns  >/dev/null 2>&1 && vpngw_apply_force_dns
 
 # save the firewall rules
 iptables-save > /etc/iptables/rules.v4

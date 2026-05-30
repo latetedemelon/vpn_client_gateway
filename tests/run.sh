@@ -11,6 +11,7 @@ SHELL_SCRIPTS=(
 	fw/fw-harden
 	fw/fw-config
 	fw/fw-allow-all
+	fw/vpngw-fwenv.sh
 	www/vpnmgmt/vpn_providers/nordvpn/vpn_update.sh
 	setup/nordvpn-wireguard-setup.sh
 	setup/set-admin-password.sh
