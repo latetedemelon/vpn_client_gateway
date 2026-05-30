@@ -77,9 +77,16 @@ Notes and caveats:
   LAN devices — but then the firewall/kill switch operates on the **host's**
   netfilter. For an isolated L2 presence, use a **macvlan** network and point
   clients at the container's macvlan IP.
-- **Persistence:** the container manages the tunnel/firewall at start via
-  `docker/entrypoint.sh`; there is no systemd inside, so boot-enable and
-  `iptables-save`/`lbu` steps are skipped (`is_container()`).
+- **Kill switch is opt-in:** the entrypoint applies the fail-closed firewall
+  only when `VPNGW_APPLY_FIREWALL=1`. It is **off by default** because under
+  `--network host` it modifies the **host's** firewall. With it off you still get
+  routing/NAT once the tunnel is up, just no kill switch.
+- **Persistence:** the container brings the tunnel up at start via
+  `docker/entrypoint.sh`; there is no systemd inside, so host boot-enable and
+  `iptables-save`/`lbu` steps are skipped (`is_container()`). The tunnel lives in
+  the container's network namespace and is torn down with it — except under
+  `--network host`, where it persists on the host and you should stop it
+  explicitly.
 - **Auth:** put the management UI behind authentication (`/etc/vpngw/auth.conf`,
   see `documentation/authentication.md`) before exposing it — with `--network
   host` the UI is reachable on the host's `:80`.

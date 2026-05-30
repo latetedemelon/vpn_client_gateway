@@ -1,0 +1,11 @@
+# Keep the Docker build context small and fast. Only www/, fw/, setup/ and
+# docker/entrypoint.sh are needed by the image.
+.git
+.github
+.gitignore
+tests
+documentation
+*.tar.gz
+README.md
+LICENSE
+**/*.disabled

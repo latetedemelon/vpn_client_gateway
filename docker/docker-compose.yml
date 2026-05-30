@@ -19,6 +19,13 @@ services:
     sysctls:
       net.ipv4.ip_forward: "1"
     network_mode: host
+    environment:
+      # Apply the fail-closed firewall + kill switch. OFF by default: under
+      # network_mode host it modifies the HOST firewall. Set to "1" for a real
+      # gateway once you understand that.
+      VPNGW_APPLY_FIREWALL: "0"
+      # Auto-bring-up wg0 when docker/wireguard/wg0.conf is mounted.
+      VPNGW_WG_AUTOUP: "1"
     volumes:
       - ./wireguard:/etc/wireguard       # place your wg0.conf here
       - vpngw-etc:/etc/vpngw             # persists backend/auth/leak/provider config

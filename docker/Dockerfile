@@ -22,6 +22,12 @@ COPY www/   /var/www/html/
 COPY fw/    /opt/vpngw/fw/
 COPY setup/ /opt/vpngw/setup/
 
+# Serve index.php (remove Apache's stock landing page that would shadow it) and
+# quiet the "ServerName" startup warning.
+RUN rm -f /var/www/html/index.html \
+ && echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf \
+ && a2enconf servername >/dev/null 2>&1 || true
+
 # The web user drives wg/iptables/etc via passwordless sudo (the gateway model).
 RUN printf '%s\n' \
       'www-data ALL=(root) NOPASSWD: /usr/bin/wg, /usr/bin/wg-quick, /sbin/iptables, /usr/sbin/iptables, /sbin/ip6tables, /usr/sbin/ip6tables, /sbin/iptables-save, /usr/sbin/iptables-save, /bin/cat, /usr/bin/install, /bin/su, /usr/sbin/service, /bin/systemctl, /usr/bin/systemctl' \
@@ -32,4 +38,8 @@ COPY docker/entrypoint.sh /usr/local/bin/vpngw-entrypoint
 RUN chmod +x /usr/local/bin/vpngw-entrypoint
 
 EXPOSE 80
+# Healthy as long as Apache answers (any HTTP status, including a 401 when auth
+# is enabled, means the UI is up).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
+  CMD curl -s -o /dev/null --max-time 5 http://localhost/ || exit 1
 ENTRYPOINT ["/usr/local/bin/vpngw-entrypoint"]
