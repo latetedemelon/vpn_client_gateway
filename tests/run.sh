@@ -18,6 +18,7 @@ SHELL_SCRIPTS=(
 	setup/vpngw-watchdog.sh
 	setup/vpngw-update-servers.sh
 	setup/vpngw-install-services.sh
+	setup/import-wireguard-config.sh
 	tests/run.sh
 )
 
@@ -59,6 +60,7 @@ echo "== unit tests =="
 php tests/test_vpn_backend.php
 php tests/test_netstat.php
 php tests/test_auth.php
+php tests/test_provider.php
 
 echo
 echo "All checks complete."
