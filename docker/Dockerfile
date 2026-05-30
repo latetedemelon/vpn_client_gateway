@@ -10,12 +10,20 @@
 # Mount your WireGuard config at /etc/wireguard/wg0.conf.
 FROM debian:bookworm-slim
 
+ENV DEBIAN_FRONTEND=noninteractive
+
+# wg-quick needs a "resolvconf" command for the wg0.conf "DNS =" line. We ship a
+# no-op shim instead of the openresolv package, which can fail to configure
+# during an image build (it rewrites /etc/resolv.conf) and isn't useful inside a
+# container network namespace anyway.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         apache2 libapache2-mod-php php-cli php-xml php-curl \
-        wireguard-tools iptables iproute2 openresolv \
+        wireguard-tools iptables iproute2 \
         curl jq ca-certificates sudo procps iputils-ping \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && printf '#!/bin/sh\nexit 0\n' > /usr/local/bin/resolvconf \
+ && chmod +x /usr/local/bin/resolvconf
 
 # Web UI, firewall scripts and setup helpers.
 COPY www/   /var/www/html/
@@ -23,10 +31,9 @@ COPY fw/    /opt/vpngw/fw/
 COPY setup/ /opt/vpngw/setup/
 
 # Serve index.php (remove Apache's stock landing page that would shadow it) and
-# quiet the "ServerName" startup warning.
+# set ServerName to quiet the startup warning.
 RUN rm -f /var/www/html/index.html \
- && echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf \
- && a2enconf servername >/dev/null 2>&1 || true
+ && echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # The web user drives wg/iptables/etc via passwordless sudo (the gateway model).
 RUN printf '%s\n' \
