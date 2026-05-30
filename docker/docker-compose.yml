@@ -1,0 +1,28 @@
+# Example Compose file for the VPN Client Gateway container.
+#
+# Build from the repo root:  docker compose -f docker/docker-compose.yml up -d --build
+#
+# host networking is the simplest way to let LAN devices use the container as
+# their gateway (the container manages the host's iptables/routes). For an
+# isolated L2 presence instead, replace it with a macvlan network (see
+# documentation/lxc-docker.md). WireGuard needs the module on the host.
+services:
+  vpngw:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    # image: yourrepo/vpn-client-gateway:latest   # or use a prebuilt image
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - "/dev/net/tun:/dev/net/tun"
+    sysctls:
+      net.ipv4.ip_forward: "1"
+    network_mode: host
+    volumes:
+      - ./wireguard:/etc/wireguard       # place your wg0.conf here
+      - vpngw-etc:/etc/vpngw             # persists backend/auth/leak/provider config
+    restart: unless-stopped
+
+volumes:
+  vpngw-etc:

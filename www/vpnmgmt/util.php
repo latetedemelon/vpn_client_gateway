@@ -96,4 +96,23 @@ function shutdown()
 	$result = shell_exec($shutdown_cmd);
 	return $result;
 }
+
+// Best-effort detection of running inside a container (Docker/Podman/LXC/k8s).
+// Used to skip host-only boot-persistence steps that don't apply in a container
+// (the container's entrypoint manages the tunnel/firewall lifecycle instead).
+function is_container()
+{
+	if (file_exists('/.dockerenv') || file_exists('/run/.containerenv')) {
+		return true;
+	}
+	$env = getenv('container');
+	if ($env !== false && $env !== '') {
+		return true;
+	}
+	$cg = @file_get_contents('/proc/1/cgroup');
+	if (is_string($cg) && preg_match('/docker|lxc|kubepods|containerd|podman/i', $cg)) {
+		return true;
+	}
+	return false;
+}
 ?>

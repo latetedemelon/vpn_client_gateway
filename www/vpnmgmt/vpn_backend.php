@@ -149,6 +149,11 @@ function vpn_is_running()
 
 function vpn_enable_boot()
 {
+	// In a container without systemd there is no boot persistence to manage;
+	// the container's entrypoint brings the tunnel up instead.
+	if (is_container() && !has_systemd()) {
+		return '';
+	}
 	if (vpn_is_wireguard()) {
 		if (has_systemd()) {
 			return shell_exec('sudo systemctl enable ' . escapeshellarg(vpn_service_name()) . ' 2>&1');
@@ -161,6 +166,9 @@ function vpn_enable_boot()
 
 function vpn_disable_boot()
 {
+	if (is_container() && !has_systemd()) {
+		return '';
+	}
 	if (vpn_is_wireguard()) {
 		if (has_systemd()) {
 			return shell_exec('sudo systemctl disable ' . escapeshellarg(vpn_service_name()) . ' 2>&1');

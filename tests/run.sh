@@ -19,6 +19,7 @@ SHELL_SCRIPTS=(
 	setup/vpngw-update-servers.sh
 	setup/vpngw-install-services.sh
 	setup/import-wireguard-config.sh
+	docker/entrypoint.sh
 	tests/run.sh
 )
 
