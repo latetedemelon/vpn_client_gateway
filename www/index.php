@@ -1,183 +1,42 @@
 <?php require_once(__DIR__ . '/vpnmgmt/auth.php'); ?>
 <!doctype html>
-<META HTTP-EQUIV="CONTENT-TYPE" CONTENT="text/html; charset=utf-8">
 <html lang="en">
-<link rel="stylesheet" type="text/css" href="index.css" />
-<script type="text/javascript" src="js/jquery-3.7.1.min.js"></script>
-<?php include 'vpnmgmt/manage_vpn.php';?>
-<script type="text/javascript">
-        function show_advanced() {
-		$("#VPNSection").show();
-		$("#Admin").hide();
-		$("#Tools").hide();
-                $("#ChooseVPNBasic").hide();
-                $("#ChooseVPNAdvanced").show();  
-        }
-        function show_basic() {
-		$("#VPNSection").show();
-		$("#Admin").hide();
-		$("#Tools").hide();
-                $("#ChooseVPNBasic").show();
-                $("#ChooseVPNAdvanced").hide();  
-        }
-	function show_tools(){
-		$("#Tools").show();
-		$("#VPNSection").hide();
-		$("#Admin").hide();
-	}
-	function show_admin(){
-		$("#Tools").hide();
-		$("#VPNSection").hide();
-		$("#Admin").show();
-		<?php
-		if(vpn_is_disabled()){
-                        echo "$(\"#EnableVPNMenuButton\").show();";
-                        echo "$(\"#DisableVPNMenuButton\").hide();";
-		}
-		else{
-                        echo "$(\"#EnableVPNMenuButton\").hide();";
-                        echo "$(\"#DisableVPNMenuButton\").show();";
-		}
-		?>
-	}
-
-</script>
-
-<script>
-        function showIPGeolocation() {
-               $("#IPInfoBoxTableContainer").html(null);
-                $("#IPInfoOverlay").show();
-                $.get("vpnmgmt/iplocation.php",function(data){
-                        $("#IPInfoBoxTableContainer").html(data);
-	                $("#IPInfoBoxTableContainer").css('background','white');
-                });
-        }
-        function hide_iplocationinfo(){
-                $("#IPInfoOverlay").hide();
-                $("#IPInfoBoxTableContainer").css('background','');
-        }
-
-	function show_traceroute() {
-		$("#TracerouteInfoContainer").html(null);
-		$("#TracerouteOverlay").show();
-                $.get("vpnmgmt/traceroute.php",function(data){
-                        $("#TracerouteInfoContainer").html(data);
-	                $("#TracerouteInfoContainer").css('background','white');
-                });
-
-	}
-
-        function hide_traceroute(){
-                $("#TracerouteOverlay").hide();
-		$("#TracerouteInfoContainer").css('background-color','');
-
-        }
-	function show_shutdown(){
-		$("#ShutdownOverlay").show();
-	}
-	function hide_shutdown(){
-		$("#ShutdownOverlay").hide();
-	}
-        function shutdown() {
-                $("#ShutdownButtonTable").hide();
-		$("#ShutdownInfoContainer").html("<P>Shutting down. Unplug after 60 seconds.<P>");
-                $.get("vpnmgmt/shutdown.php",function(data){
-                });
-        }
-
-	function show_enable_vpn(){
-		$("#EnableVPNOverlay").show();
-	}
-	function hide_enable_vpn(){
-		$("#EnableVPNOverlay").hide();
-	}
-	function show_disable_vpn(){
-		$("#DisableVPNOverlay").show();
-	}
-	function hide_disable_vpn(){
-		$("#DisableVPNOverlay").hide();
-	}
-	function show_reboot(){
-                $("#RebootOverlay").show();
-        }
-        function hide_reboot(){
-                $("#RebootOverlay").hide();
-        }
-        function reboot() {
-		$("#RebootButtonTable").hide();
-                $.get("vpnmgmt/reboot.php",function(data){
-                });
-		var counter=90;
-		var id;
-		id = setInterval(function() {
-    		counter--;
-    		if(counter < 0) {
-        		clearInterval(id);
-			$("#RebootOverlay").hide();
-			window.location.reload();
-    		} else {
-			$("#RebootInfoContainer").html("<P>Rebooting. Page will reload in " + counter.toString() + " seconds.<P>");
-    		}
-		}, 1000);
-        }
-
-	function enable_vpn() {
-		$("#EnableVPNOverlay").hide();
-		show_changing_vpn_message();
-                $.get("vpnmgmt/enablevpn.php",function(data){
-                });
-		window.location.reload();
-	}
-
-	function disable_vpn() {
-		$("#DisableVPNOverlay").hide();
-		show_changing_vpn_message();
-                $.get("vpnmgmt/disablevpn.php",function(data){
-                });
-		window.location.reload();
-		$("#VPNChangeMessageOverlay").show().delay(5000).fadeOut('fast');
-	}
-
-        function show_syslog() {
-		$("#SyslogInfoContainer").html(null);
-		$("#SyslogOverlay").show();
-		$.get("vpnmgmt/syslog.php",function(data){
-                        $("#SyslogInfoContainer").html(data);
-                });
-        }
-        function hide_syslog() {
-		$("#SyslogOverlay").hide();
-        }
-
-	function show_changing_vpn_message(){
-		$("#ChangingVPNMessageOverlay").show();
-	}
-
-</script>
-
-<HEAD>
-	<TITLE>VPN Client Gateway Management</TITLE>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>VPN Client Gateway Management</title>
+	<link rel="stylesheet" type="text/css" href="index.css" />
 	<link rel="shortcut icon" href="/images/favicon.ico" type="image/x-icon" />
-</HEAD>
+	<?php require_once 'vpnmgmt/manage_vpn.php'; ?>
+	<script type="text/javascript" src="js/app.js"></script>
+</head>
+<?php
+// Server-rendered state, passed to the static JS via data-* attributes instead
+// of emitting PHP-in-JavaScript.
+$vpn_disabled_attr = vpn_is_disabled() ? '1' : '0';
+$vpn_changed_attr  = isset($_GET['vpnserver']) ? '1' : '0';
+?>
+<body id="body" lang="en-CA" dir="LTR"
+      data-vpn-disabled="<?php echo $vpn_disabled_attr; ?>"
+      data-vpn-changed="<?php echo $vpn_changed_attr; ?>">
 
 <div id="VPNChangeMessageOverlay" class="screenoverlay">
         <div id="VPNChangeMessage" class="vpnchangemessage">
-                <H2>VPN Changed<H2>
-                <P>Remember to restart media apps!<P>
+                <H2>VPN Changed</H2>
+                <P>Remember to restart media apps!</P>
         </div>
 </div>
 
 <div id="ChangingVPNMessageOverlay" class="screenoverlay">
         <div id="ChangingVPNMessage" class="changingvpnmessage">
-                <H2>Changing VPN<H2>
-                <P>This may take a few moments...<P>
+                <H2>Changing VPN</H2>
+                <P>This may take a few moments...</P>
         </div>
 </div>
 
 <div id="IPInfoOverlay" class="screenoverlay">
         <div id="IPInfoBox">
                 <div id="IPInfoBoxTitle">
-                        <H2>IP Geolocation<H2>
+                        <H2>IP Geolocation</H2>
                 </div>
                 <div id="IPInfoBoxTableContainer">
                 </div>
@@ -190,7 +49,7 @@
 <div id="TracerouteOverlay" class="screenoverlay">
         <div id="TracerouteInfoBox">
                 <div id="TracerouteInfoBoxTitle">
-                        <H2>Traceroute<H2>
+                        <H2>Traceroute</H2>
                 </div>
                 <div id="TracerouteInfoContainer">
                 </div>
@@ -201,10 +60,25 @@
         </div>
 </div>
 
+<div id="DNSLeakOverlay" class="screenoverlay">
+        <div id="DNSLeakInfoBox">
+                <div id="DNSLeakInfoBoxTitle">
+                        <H2>DNS / IP leak test</H2>
+                </div>
+                <div id="DNSLeakInfoContainer">
+                </div>
+		<div class="ButtonSpacer"></div>
+                <div id="ButtonContainer">
+                        <button id="DNSLeakRetestButton" onclick="show_dnsleak();">Re-test</button>
+                        <button id="DNSLeakCloseButton" onclick="hide_dnsleak();">Close</button>
+                </div>
+        </div>
+</div>
+
 <div id="SyslogOverlay" class="screenoverlay">
         <div id="SyslogInfoBox">
                 <div id="SyslogInfoBoxTitle">
-                        <H2>syslog<H2>
+                        <H2>syslog</H2>
                 </div>
                 <div id="SyslogInfoContainer">
                 </div>
@@ -218,10 +92,10 @@
 <div id="DisableVPNOverlay" class="screenoverlay">
         <div id="DisableVPNInfoBox">
                 <div id="DisableVPNInfoBoxTitle">
-                        <H2>Disable VPN<H2>
+                        <H2>Disable VPN</H2>
                 </div>
                 <div id="DisableVPNInfoContainer">
-			<P>Disabling VPN service. Network traffic will be forwarded via your normal ISP internet connection.<P>
+			<P>Disabling VPN service. Network traffic will be forwarded via your normal ISP internet connection.</P>
                 </div>
 		<div class="ButtonSpacer"></div>
                 <div id="ButtonContainer">
@@ -229,7 +103,7 @@
 			<tr>
 				<td><button id="DisableVPNCancelButton" onclick="hide_disable_vpn();">Cancel</button></td>
 				<td></td>
-                        	<td><button id="DisableVPNContinueButton" onclick="hide_disable_vpn();show_changing_vpn_message();window.location.href='.?vpnserver=disable';">Continue</button></td>
+                        	<td><button id="DisableVPNContinueButton" onclick="disable_vpn();">Continue</button></td>
 			</tr>
 			</table>
                 </div>
@@ -239,10 +113,10 @@
 <div id="EnableVPNOverlay" class="screenoverlay">
         <div id="EnableVPNInfoBox">
                 <div id="EnableVPNInfoBoxTitle">
-                        <H2>Enable VPN<H2>
+                        <H2>Enable VPN</H2>
                 </div>
                 <div id="EnableVPNInfoContainer">
-			<P>Enabling VPN service. Network traffic will be forwarded via your VPN connection.<P>
+			<P>Enabling VPN service. Network traffic will be forwarded via your VPN connection.</P>
                 </div>
 		<div class="ButtonSpacer"></div>
                 <div id="ButtonContainer">
@@ -250,7 +124,7 @@
 			<tr>
 				<td><button id="EnablePNCancelButton" onclick="hide_enable_vpn();">Cancel</button></td>
 				<td></td>
-                        	<td><button id="EnableVPNContinueButton" onclick="hide_enable_vpn();show_changing_vpn_message();window.location.href='.?vpnserver=enable';">Continue</button></td>
+                        	<td><button id="EnableVPNContinueButton" onclick="enable_vpn();">Continue</button></td>
 			</tr>
 			</table>
                 </div>
@@ -260,10 +134,10 @@
 <div id="ShutdownOverlay" class="screenoverlay">
         <div id="ShutdownInfoBox">
                 <div id="ShutdownInfoBoxTitle">
-                        <H2>Shut Down VPN Client Gateway<H2>
+                        <H2>Shut Down VPN Client Gateway</H2>
                 </div>
                 <div id="ShutdownInfoContainer">
-			<P>Warning: after shutting down the VPN Client Gateway server, it must be powered back on manually.<P>
+			<P>Warning: after shutting down the VPN Client Gateway server, it must be powered back on manually.</P>
                 </div>
 		<div class="ButtonSpacer"></div>
                 <div id="ButtonContainer">
@@ -281,10 +155,10 @@
 <div id="RebootOverlay" class="screenoverlay">
         <div id="RebootInfoBox">
                 <div id="RebootInfoBoxTitle">
-                        <H2>Reboot VPN Client Gateway<H2>
+                        <H2>Reboot VPN Client Gateway</H2>
                 </div>
                 <div id="RebootInfoContainer">
-                        <P>Rebooting will take approximately 90 seconds. All sessions will be terminated.<P>
+                        <P>Rebooting will take approximately 90 seconds. All sessions will be terminated.</P>
                 </div>
                 <div class="ButtonSpacer"></div>
                 <div id="ButtonContainer">
@@ -299,18 +173,6 @@
         </div>
 </div>
 
-<BODY ID="body" LANG="en-CA" DIR="LTR">
-<script>
-<?php
-$vpnserver=$_GET["vpnserver"];
-if (isset($vpnserver)){
-//Display modal overlay
-echo "$(\"#VPNChangeMessageOverlay\").show().delay(5000).fadeOut('fast');";
-//Upate URL to strip off parameters
-echo "window.history.pushState('','','/');";
-}
-?>
-</script>
 <div class="header">
 <H1>VPN Client Gateway Management</H1>
 </div>
@@ -329,7 +191,15 @@ echo "window.history.pushState('','','/');";
 	<div id="PageContainer">
 		<div id="VPNSection">
 		<div id="CurrentVPNSection">
-			<script>$(function(){$("#CurrentVPNSection").load("currentvpnsection.php");}); </script> 
+		</div>
+		<div id="StatusSection">
+			<H2>Connection status <span id="stBadge" class="stbadge st-unknown">checking&hellip;</span></H2>
+			<table id="StatusTable">
+				<tr><td class="stlabel">Server</td><td id="stServer">&hellip;</td></tr>
+				<tr><td class="stlabel">Exit IP</td><td id="stExit">&hellip;</td></tr>
+				<tr><td class="stlabel">Last handshake</td><td id="stHandshake">&hellip;</td></tr>
+				<tr><td class="stlabel">Backend</td><td id="stBackend">&hellip;</td></tr>
+			</table>
 		</div>
 		<div id="ThroughputSection">
 			<H2>Throughput</H2>
@@ -347,76 +217,11 @@ echo "window.history.pushState('','','/');";
 			</table>
 			<p class="tplegend"><strong>WAN</strong> = internet uplink (outflow) &middot; <strong>LAN</strong> = client-facing (inflow) &middot; <strong>VPN</strong> = encrypted tunnel. Per-interface RX (received) / TX (transmitted) by the gateway.</p>
 		</div>
-		<script type="text/javascript">
-		// Live throughput meter. Polls throughput.php for cumulative byte
-		// counters and derives the rate from successive samples on the client.
-		(function(){
-			var prev = null;          // previous sample: { t, m: { iface: {rx,tx} } }
-			var POLL_MS = 2000;
-
-			function tpFmt(bps){
-				if (bps === null || isNaN(bps)) return "&mdash;";
-				if (bps < 0) bps = 0;
-				var u = ["B/s","KB/s","MB/s","GB/s"], i = 0, v = bps;
-				while (v >= 1024 && i < u.length - 1){ v = v / 1024; i++; }
-				var dp = (i === 0) ? 0 : (v < 10 ? 1 : 0);
-				return v.toFixed(dp) + " " + u[i];
-			}
-
-			function rate(cur, old, dtSec){
-				if (cur === null || old === null) return null;
-				var d = cur - old;
-				if (d < 0) return null;   // counter reset (interface bounced)
-				return d / dtSec;
-			}
-
-			// Role -> display word + descriptor. On a single-NIC box the uplink
-			// also carries LAN traffic, so it is labelled WAN/LAN.
-			function roleMeta(role, multi){
-				if (role === "vpn") return { word: "VPN", desc: "tunnel" };
-				if (role === "wan") return multi ? { word: "WAN", desc: "outflow" }
-				                                 : { word: "WAN/LAN", desc: "uplink" };
-				return { word: "LAN", desc: "inflow" };
-			}
-
-			function cellRate(r, pm, dt, which){
-				if (r.role === "vpn" && !r.up) return (which === "rx") ? "VPN off" : "&mdash;";
-				if (!r.up || r[which] === null) return "&mdash;";
-				if (pm && pm[r.iface] && dt > 0) return tpFmt(rate(r[which], pm[r.iface][which], dt));
-				return "&hellip;";
-			}
-
-			function tick(){
-				if (document.hidden) return;   // skip when tab is backgrounded
-				$.getJSON("throughput.php", function(s){
-					var dt = (prev && s.t > prev.t) ? (s.t - prev.t) / 1000.0 : 0;
-					var pm = prev ? prev.m : null;
-					var html = "", m = {};
-					for (var i = 0; i < s.rows.length; i++){
-						var r = s.rows[i], meta = roleMeta(r.role, s.multi);
-						html += '<tr class="tprow tprole-' + r.role + '">'
-						      + '<td class="tplabel"><strong>' + meta.word + '</strong> '
-						      + '<span class="tpiface">' + r.iface + '</span> '
-						      + '<span class="tprole">' + meta.desc + '</span></td>'
-						      + '<td class="tprate">' + cellRate(r, pm, dt, "rx") + '</td>'
-						      + '<td class="tprate">' + cellRate(r, pm, dt, "tx") + '</td></tr>';
-						m[r.iface] = { rx: r.rx, tx: r.tx };
-					}
-					$("#tpBody").html(html);
-					prev = { t: s.t, m: m };
-				});
-			}
-
-			$(function(){ tick(); setInterval(tick, POLL_MS); });
-		})();
-		</script>
 		<div id="VPNChooser">
 		<H2>Choose new VPN server:</H2>
 			<div id="ChooseVPNBasic">
-				<script>$(function(){$("#ChooseVPNBasic").load("choosevpnbasicxml.php");}); </script> 
 			</div>
 			<div id="ChooseVPNAdvanced">
-				<script>$(function(){$("#ChooseVPNAdvanced").load("choosevpnadvancedxml.php");}); </script> 
 			</div>
 		</div>
 		</div>
@@ -424,6 +229,8 @@ echo "window.history.pushState('','','/');";
 			<div id="ToolsMenu" class="buttonmenu">
 			<ul>
 			<li><a href="javascript:void(0);" onclick="showIPGeolocation();">Get IP address geolocation</a></li>
+			<div class="menubuttonspacer"></div>
+			<li><a href="javascript:void(0);" onclick="show_dnsleak();">Test for DNS / IP leaks</a></li>
 			<div class="menubuttonspacer"></div>
 			<li><a href="javascript:void(0);" onclick="show_traceroute();">Run traceroute</a></li>
 			<div class="menubuttonspacer"></div>
@@ -435,27 +242,27 @@ echo "window.history.pushState('','','/');";
 			<div id="AdminMenu" class="buttonmenu">
 			<ul>
                         <div id="EnableVPNMenuButton">
-                                <li><a href="javascript:void();" onclick="show_enable_vpn();">Enable VPN</a></li>
+                                <li><a href="javascript:void(0);" onclick="show_enable_vpn();">Enable VPN</a></li>
                                 <div class="menubuttonspacer"></div>
                         </div>
                         <div id="DisableVPNMenuButton">
-                                <li><a href="javascript:void();" onclick="show_disable_vpn();">Disable VPN</a></li>
+                                <li><a href="javascript:void(0);" onclick="show_disable_vpn();">Disable VPN</a></li>
                                 <div class="menubuttonspacer"></div>
                         </div>
-			<li><a href="javascript:void();" onclick="show_reboot();">Reboot</a></li>
+			<li><a href="javascript:void(0);" onclick="show_reboot();">Reboot</a></li>
 			<div class="menubuttonspacer"></div>
-			<li><a href="javascript:void();" onclick="show_shutdown();">Shut down</a></li>
+			<li><a href="javascript:void(0);" onclick="show_shutdown();">Shut down</a></li>
 			</ul>
 			</div>
 		</div>
 	</div>
 </div>
-<FOOTER>
+<footer>
 <?php if (vpn_is_wireguard()): ?>
 <span id="BackendLabel" class="backendlabel">Powered by WireGuard&reg;</span>
 <?php else: ?>
 <img id="OpenVPNLogo" class="openvpnlogo" src="images/openvpn_logo_powered_by.png" alt="OpenVPN logo"/>
 <?php endif; ?>
-</FOOTER>
+</footer>
 </body>
 </html>

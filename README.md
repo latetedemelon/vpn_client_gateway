@@ -33,7 +33,9 @@ API.
 
 ## Security, reliability & deployment
 
-* **Management-page authentication** — optional, standards-based, **off by default**. HTTP Basic (`sudo ./setup/set-admin-password.sh`) or trust an upstream SSO proxy (Authelia / Authentik / oauth2-proxy / Cloudflare Access). See [documentation/authentication.md](documentation/authentication.md).
+* **Live status & throughput** — a connection-status panel (up/down, exit IP + country, last handshake, active server) and a per-interface throughput meter on the management page. `vpnmgmt/status.php` doubles as a machine-readable health endpoint.
+* **DNS / IP leak test** — Tools → *Test for DNS / IP leaks* checks that only the VPN resolver answers and reports the exit IP/country. Prevention (IPv6 block, optional forced DNS) lives in `/etc/vpngw/leak.conf`.
+* **Management-page authentication & HTTPS** — optional, standards-based, **off by default**. HTTP Basic (`sudo ./setup/set-admin-password.sh`) or trust an upstream SSO proxy (Authelia / Authentik / oauth2-proxy / Cloudflare Access); serve over TLS with `sudo ./setup/enable-https.sh`. See [documentation/authentication.md](documentation/authentication.md).
 * **Leak protection** — IPv6 egress is blocked so dual-stack clients can't bypass the IPv4 tunnel and kill switch, with optional forced DNS. Configure in `/etc/vpngw/leak.conf` ([example](documentation/examples/leak.conf)).
 * **Connection watchdog + auto-reconnect** — health-checks the tunnel and reconnects (and rotates servers) **without ever opening the kill switch**. Install it, plus a periodic server-list refresh, with `sudo ./setup/vpngw-install-services.sh`.
 * **Multiple VPN vendors** — NordVPN is wired natively; import any standard WireGuard config (Mullvad, Proton, AirVPN, self-hosted, …) with `sudo ./setup/import-wireguard-config.sh vendor.conf [CC] [Country]`. See the [provider backlog](documentation/providers-backlog.md).

@@ -682,3 +682,82 @@ footer{
         padding: 0;
 }
 
+/* --- Connection status panel --- */
+#StatusSection {
+        width: 100%;
+        background-color: #E6E6E6;
+        padding-top: 5px;
+        padding-bottom: 8px;
+}
+#StatusSection H2 {
+        padding-top: 10px;
+        padding-left: 10px;
+        margin-top: 0;
+        margin-bottom: 5px;
+}
+#StatusTable {
+        width: 96%;
+        margin-left: 2%;
+        border-collapse: collapse;
+        font-family: "Arial";
+}
+#StatusTable td {
+        padding: 5px 10px;
+        border-bottom: 1px solid #D9D9D9;
+}
+#StatusTable td.stlabel {
+        width: 40%;
+        color: #4d4d4d;
+}
+.stbadge {
+        font-size: 14px;
+        font-weight: bold;
+        padding: 2px 10px;
+        border-radius: 10px;
+        color: #fff;
+        vertical-align: middle;
+}
+.stbadge.st-up      { background-color: #2e7d32; }
+.stbadge.st-warn    { background-color: #e65100; }
+.stbadge.st-down    { background-color: #c62828; }
+.stbadge.st-off     { background-color: #616161; }
+.stbadge.st-unknown { background-color: #9e9e9e; }
+
+/* --- DNS / IP leak test --- */
+#DNSLeakInfoBox {
+        width: 520px;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        margin-top: -200px;
+        margin-left: -260px;
+        background-color: #FFFFFF;
+        border-radius: 5px;
+        text-align: left;
+        z-index: 11;
+        padding-bottom: 10px;
+}
+#DNSLeakInfoBoxTitle { text-align: center; }
+#DNSLeakInfoContainer {
+        width: 90%;
+        margin-left: 5%;
+        font-family: "Arial";
+        min-height: 120px;
+}
+.leak-table { width: 100%; border-collapse: collapse; }
+.leak-table td { padding: 5px 8px; border-bottom: 1px solid #E6E6E6; font-size: 14px; }
+.leak-banner {
+        text-align: center;
+        font-weight: bold;
+        color: #fff;
+        padding: 8px;
+        border-radius: 4px;
+        margin: 8px 0;
+}
+.leak-banner.leak-pass { background-color: #2e7d32; }
+.leak-banner.leak-fail { background-color: #c62828; }
+.leak-banner.leak-warn { background-color: #e65100; }
+.leak-fail-text { color: #c62828; font-weight: bold; }
+.leak-note { font-size: 12px; color: #4d4d4d; }
+.dnsleak-testing { font-style: italic; color: #4d4d4d; }
+

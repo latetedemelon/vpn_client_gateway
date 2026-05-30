@@ -15,6 +15,7 @@ SHELL_SCRIPTS=(
 	www/vpnmgmt/vpn_providers/nordvpn/vpn_update.sh
 	setup/nordvpn-wireguard-setup.sh
 	setup/set-admin-password.sh
+	setup/enable-https.sh
 	setup/vpngw-watchdog.sh
 	setup/vpngw-update-servers.sh
 	setup/vpngw-install-services.sh
@@ -62,6 +63,7 @@ php tests/test_vpn_backend.php
 php tests/test_netstat.php
 php tests/test_auth.php
 php tests/test_provider.php
+php tests/test_status.php
 
 echo
 echo "All checks complete."
